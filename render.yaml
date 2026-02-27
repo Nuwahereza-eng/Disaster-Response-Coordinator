@@ -51,3 +51,4 @@ services:
     name: drc-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Allow all IPs (empty list means all Render services can connect)
