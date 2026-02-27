@@ -1,0 +1,380 @@
+@page "/profile"
+@rendermode InteractiveServer
+@inject UserClientService UserService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using DRC.App.Services
+
+<PageTitle>My Profile - Uganda Disaster Response</PageTitle>
+
+<div class="profile-container">
+    @if (!UserService.IsAuthenticated)
+    {
+        <!-- Login/Register Form -->
+        <div class="auth-wrapper">
+            <div class="auth-info">
+                <div class="auth-logo">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <h2>Uganda Disaster Response</h2>
+                <p>Create an account to access our AI-powered emergency response agent.</p>
+                <ul class="benefits-list">
+                    <li><i class="bi bi-robot"></i> <span>Chat with our intelligent agent 24/7</span></li>
+                    <li><i class="bi bi-telephone-fill"></i> <span>Save emergency contacts for quick alerts</span></li>
+                    <li><i class="bi bi-house-fill"></i> <span>Register for shelters during disasters</span></li>
+                    <li><i class="bi bi-file-text"></i> <span>Track your request history</span></li>
+                    <li><i class="bi bi-exclamation-triangle"></i> <span>Get personalized emergency assistance</span></li>
+                </ul>
+            </div>
+            <div class="auth-card">
+                <div class="auth-tabs">
+                    <button class="tab-btn @(showLogin ? "active" : "")" @onclick="() => showLogin = true">
+                        <i class="bi bi-box-arrow-in-right"></i> Login
+                    </button>
+                    <button class="tab-btn @(!showLogin ? "active" : "")" @onclick="() => showLogin = false">
+                        <i class="bi bi-person-plus"></i> Register
+                    </button>
+                </div>
+
+                @if (showLogin)
+                {
+                    <h2>Welcome Back</h2>
+                    <p class="auth-subtitle">Login to continue to the agent</p>
+                    <div class="form-group">
+                        <label><i class="bi bi-envelope"></i> Email</label>
+                        <input type="email" @bind="loginEmail" placeholder="your@email.com" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label><i class="bi bi-lock-fill"></i> Password</label>
+                        <input type="password" @bind="loginPassword" placeholder="Password" class="form-control" />
+                    </div>
+                    <button class="btn btn-primary" @onclick="LoginAsync" disabled="@isLoading">
+                        @if (isLoading) { <span class="spinner-sm"></span> } Login & Start Chatting
+                    </button>
+                }
+                else
+                {
+                    <h2>Get Started</h2>
+                    <p class="auth-subtitle">Create your account in seconds</p>
+                    <div class="form-group">
+                        <label><i class="bi bi-person"></i> Full Name</label>
+                        <input type="text" @bind="registerName" placeholder="John Okello" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label><i class="bi bi-envelope"></i> Email</label>
+                        <input type="email" @bind="registerEmail" placeholder="your@email.com" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label><i class="bi bi-telephone"></i> Phone</label>
+                        <input type="tel" @bind="registerPhone" placeholder="+256 7XX XXX XXX" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label><i class="bi bi-lock-fill"></i> Password</label>
+                        <input type="password" @bind="registerPassword" placeholder="Min 6 characters" class="form-control" />
+                    </div>
+                    <button class="btn btn-primary" @onclick="RegisterAsync" disabled="@isLoading">
+                        @if (isLoading) { <span class="spinner-sm"></span> } Create Account & Start Chatting
+                    </button>
+                }
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger">@errorMessage</div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- User Profile -->
+        <div class="profile-header">
+            <h1><i class="bi bi-person-circle"></i> My Profile</h1>
+            <div class="header-actions">
+                <a href="/" class="btn btn-primary"><i class="bi bi-chat-dots"></i> Chat with Agent</a>
+                <button class="btn btn-outline" @onclick="Logout"><i class="bi bi-box-arrow-right"></i> Logout</button>
+            </div>
+        </div>
+
+        <!-- Quick Access Banner -->
+        <div class="quick-access-banner">
+            <div class="banner-content">
+                <span class="banner-icon"><i class="bi bi-robot"></i></span>
+                <div class="banner-text">
+                    <strong>Need help?</strong>
+                    <span>Chat with our AI agent for emergency assistance, shelter registration, and more.</span>
+                </div>
+            </div>
+            <a href="/" class="btn btn-light">Start Chatting <i class="bi bi-arrow-right"></i></a>
+        </div>
+
+        @if (profile != null)
+        {
+            <div class="profile-section">
+                <h3><i class="bi bi-clipboard-data"></i> Personal Information</h3>
+                <div class="profile-info">
+                    <div class="info-row">
+                        <label>Name</label>
+                        <span>@profile.FullName</span>
+                    </div>
+                    <div class="info-row">
+                        <label>Email</label>
+                        <span>@profile.Email</span>
+                    </div>
+                    <div class="info-row">
+                        <label>Phone</label>
+                        <span>@profile.Phone</span>
+                    </div>
+                    <div class="info-row">
+                        <label>Member Since</label>
+                        <span>@profile.CreatedAt.ToString("MMMM dd, yyyy")</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h3><i class="bi bi-telephone-fill"></i> Emergency Contacts</h3>
+                @if (emergencyContacts != null && emergencyContacts.Any())
+                {
+                    <div class="contacts-list">
+                        @foreach (var contact in emergencyContacts)
+                        {
+                            <div class="contact-card">
+                                <div class="contact-info">
+                                    <strong>@contact.FullName</strong>
+                                    <span>@contact.Phone</span>
+                                    <small>@contact.Relationship</small>
+                                </div>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DeleteContact(contact.Id)"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="empty-text">No emergency contacts added yet.</p>
+                }
+
+                <div class="add-contact-form">
+                    <input type="text" @bind="newContactName" placeholder="Contact Name" />
+                    <input type="tel" @bind="newContactPhone" placeholder="Phone Number" />
+                    <select @bind="newContactRelationship">
+                        <option value="">Relationship</option>
+                        <option value="Parent">Parent</option>
+                        <option value="Spouse">Spouse</option>
+                        <option value="Sibling">Sibling</option>
+                        <option value="Child">Child</option>
+                        <option value="Friend">Friend</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <button class="btn btn-sm btn-primary" @onclick="AddContact"><i class="bi bi-plus-lg"></i> Add</button>
+                </div>
+            </div>
+
+            <div class="profile-section">
+                <h3><i class="bi bi-file-text"></i> Request History</h3>
+                
+                @if (history?.EmergencyRequests?.Any() == true)
+                {
+                    <h4><i class="bi bi-exclamation-triangle"></i> Emergency Requests</h4>
+                    <table class="history-table">
+                        <thead>
+                            <tr><th>Type</th><th>Location</th><th>Severity</th><th>Status</th><th>Date</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var req in history.EmergencyRequests)
+                            {
+                                <tr>
+                                    <td>@req.Type</td>
+                                    <td>@req.Location</td>
+                                    <td><span class="badge severity-@req.Severity.ToLower()">@req.Severity</span></td>
+                                    <td><span class="badge status-@req.Status.ToLower()">@req.Status</span></td>
+                                    <td>@req.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (history?.ShelterRegistrations?.Any() == true)
+                {
+                    <h4><i class="bi bi-house-fill"></i> Shelter Registrations</h4>
+                    <table class="history-table">
+                        <thead>
+                            <tr><th>Family Size</th><th>Shelter</th><th>Status</th><th>Date</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var reg in history.ShelterRegistrations)
+                            {
+                                <tr>
+                                    <td>@reg.FamilySize people</td>
+                                    <td>@(reg.ShelterName ?? "Pending")</td>
+                                    <td><span class="badge status-@reg.Status.ToLower()">@reg.Status</span></td>
+                                    <td>@reg.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (history?.EvacuationRequests?.Any() == true)
+                {
+                    <h4><i class="bi bi-truck"></i> Evacuation Requests</h4>
+                    <table class="history-table">
+                        <thead>
+                            <tr><th>Location</th><th>People</th><th>Priority</th><th>Status</th><th>Date</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var evac in history.EvacuationRequests)
+                            {
+                                <tr>
+                                    <td>@evac.Location</td>
+                                    <td>@evac.NumberOfPeople</td>
+                                    <td><span class="badge priority-@evac.Priority.ToLower()">@evac.Priority</span></td>
+                                    <td><span class="badge status-@evac.Status.ToLower()">@evac.Status</span></td>
+                                    <td>@evac.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (history?.EmergencyRequests?.Any() != true && 
+                     history?.ShelterRegistrations?.Any() != true && 
+                     history?.EvacuationRequests?.Any() != true)
+                {
+                    <p class="empty-text">No request history yet. Your emergency and shelter requests will appear here.</p>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool showLogin = true;
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    // Login fields
+    private string loginEmail = "";
+    private string loginPassword = "";
+
+    // Register fields
+    private string registerName = "";
+    private string registerEmail = "";
+    private string registerPhone = "";
+    private string registerPassword = "";
+
+    // Profile data
+    private UserProfileDto? profile;
+    private List<EmergencyContactDto>? emergencyContacts;
+    private UserHistoryDto? history;
+
+    // New contact form
+    private string newContactName = "";
+    private string newContactPhone = "";
+    private string newContactRelationship = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize auth state from browser storage
+        await UserService.InitializeAsync();
+        
+        if (UserService.IsAuthenticated)
+        {
+            await LoadProfile();
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        errorMessage = null;
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await UserService.LoginAsync(loginEmail, loginPassword);
+            if (result != null)
+            {
+                // After successful login, redirect to the agent chat
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Invalid email or password";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Login failed: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RegisterAsync()
+    {
+        errorMessage = null;
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await UserService.RegisterAsync(registerName, registerEmail, registerPhone, registerPassword);
+            if (result != null)
+            {
+                // After successful registration, redirect to the agent chat
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Registration failed. Email may already be in use.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Registration failed: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadProfile()
+    {
+        profile = await UserService.GetProfileAsync();
+        emergencyContacts = await UserService.GetEmergencyContactsAsync();
+        history = await UserService.GetHistoryAsync();
+        StateHasChanged();
+    }
+
+    private async Task AddContact()
+    {
+        if (!string.IsNullOrEmpty(newContactName) && !string.IsNullOrEmpty(newContactPhone) && !string.IsNullOrEmpty(newContactRelationship))
+        {
+            await UserService.AddEmergencyContactAsync(newContactName, newContactPhone, newContactRelationship);
+            newContactName = "";
+            newContactPhone = "";
+            newContactRelationship = "";
+            emergencyContacts = await UserService.GetEmergencyContactsAsync();
+        }
+    }
+
+    private async Task DeleteContact(int id)
+    {
+        await UserService.DeleteEmergencyContactAsync(id);
+        emergencyContacts = await UserService.GetEmergencyContactsAsync();
+    }
+
+    private void Logout()
+    {
+        UserService.Logout();
+        profile = null;
+        emergencyContacts = null;
+        history = null;
+        StateHasChanged();
+    }
+}

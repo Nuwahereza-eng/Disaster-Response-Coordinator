@@ -28,7 +28,7 @@ O 'Disaster Response Coordinator' é um sistema interativo baseado em inteligên
 
 ### Características e Funcionalidades
 **Interações e Interfaces:**
-- **Chat de Testes:** Interface de usuário otimizada para interação via browser para execução de testes sem configuração do Whatsapp.
+- **Agent de Testes:** Interface de usuário otimizada para interação via browser para execução de testes sem configuração do Whatsapp.
 - **Contexto Persistente:** Redis com `IChatCacheService` para manter o estado das conversas.
 
 **Integrações Externas:**
@@ -36,9 +36,9 @@ O 'Disaster Response Coordinator' é um sistema interativo baseado em inteligên
 - **Localização:** Uso de Google Places e Google Geo para identificar hospitais e locais seguros.
 - **Logística:** Consulta de endereços pelo CEP com ViaCep.
 
-# Serviço de Chat
+# Serviço de Agent
 
-O `ChatService` é o coração da interação do usuário no "Disaster Response Coordinator". Este serviço gerencia a comunicação entre os usuários e o sistema, utilizando várias APIs e serviços para fornecer respostas precisas e oportunas durante emergências.
+O `ChatService` (agora exposto como agente HTTP) é o coração da interação do usuário no "Disaster Response Coordinator". Este serviço gerencia a comunicação entre os usuários e o sistema, utilizando várias APIs e serviços para fornecer respostas precisas e oportunas durante emergências.
 
 ## Funcionalidades do Serviço
 O `ChatService` implementa a interface `IChatService` e realiza múltiplas funções críticas:

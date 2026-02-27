@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "DRC.App/Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+
+[[services]]
+name = "app"
+internalPort = 8080

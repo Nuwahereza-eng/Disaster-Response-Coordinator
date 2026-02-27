@@ -6,6 +6,7 @@ namespace DRC.Api.Interfaces
     {
         Task<bool> SendMessage(string phone, string message);
         Task<bool> ReceiveMessage(string phone, string message);
-        Task<bool> SendTemplateMessage(string phone, string template, List<TextMessageComponent> parameters = null);
+        Task<bool> ReceiveLocation(string phone, double latitude, double longitude);
+        Task<bool> SendTemplateMessage(string phone, string template, List<TextMessageComponent>? parameters = null);
     }
 }

@@ -1,18 +1,56 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Disaster Response Coordinator</a>
-    </div>
-</div>
+@inject DRC.App.Services.UserClientService UserClient
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
+<nav class="sidebar">
+    <a href="" class="logo">
+        <div class="logo-icon">
+            <i class="bi bi-shield-check"></i>
         </div>
-    </nav>
-</div>
+        <span>DRC Uganda</span>
+    </a>
 
+    <div class="nav-links">
+        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <i class="bi bi-robot"></i>
+            <span>Emergency Agent</span>
+        </NavLink>
+        <NavLink class="nav-link" href="profile">
+            <i class="bi bi-person-fill"></i>
+            <span>My Profile</span>
+        </NavLink>
+        @if (IsAdmin)
+        {
+            <NavLink class="nav-link" href="admin">
+                <i class="bi bi-speedometer2"></i>
+                <span>Admin Dashboard</span>
+            </NavLink>
+        }
+        
+        <div class="nav-section">
+            <span class="nav-section-label">Emergency Contacts</span>
+        </div>
+        
+        <a href="tel:999" class="nav-link emergency-contact">
+            <i class="bi bi-shield-fill"></i>
+            <span>Police: 999</span>
+        </a>
+        <a href="tel:911" class="nav-link emergency-contact">
+            <i class="bi bi-heart-pulse-fill"></i>
+            <span>Ambulance: 911</span>
+        </a>
+        <a href="tel:112" class="nav-link emergency-contact">
+            <i class="bi bi-fire"></i>
+            <span>Fire: 112</span>
+        </a>
+    </div>
+    
+    <div class="sidebar-footer">
+        <div class="status-indicator">
+            <span class="status-dot"></span>
+            <span>System Online</span>
+        </div>
+    </div>
+</nav>
+
+@code {
+    private bool IsAdmin => UserClient.CurrentUser?.Role?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true;
+}

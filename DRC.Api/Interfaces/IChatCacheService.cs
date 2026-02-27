@@ -1,10 +1,10 @@
-﻿using ChatAIze.GenerativeCS.Models;
+﻿using DRC.Api.Services;
 
 namespace DRC.Api.Interfaces
 {
     public interface IChatCacheService
     {
-        Task SaveConversationAsync(ChatConversation conversation);
-        Task<ChatConversation> GetConversationAsync(Guid id);
+        Task SaveConversationAsync(Guid id, List<ChatMessage> conversation);
+        Task<List<ChatMessage>?> GetConversationAsync(Guid id);
     }
 }

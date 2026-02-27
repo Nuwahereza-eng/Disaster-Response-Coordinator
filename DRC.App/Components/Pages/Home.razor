@@ -1,56 +1,136 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
+@inject IJSRuntime JS
 
-<h1>Chat</h1>
-<div id="chatcontainer" style="height:550px; width:80%; overflow: scroll;">
-    @foreach (var item in messages)
-    {
-        <div>
-            @if (item.Role == 1)
+<div class="chat-page">
+    <div class="chat-top-section">
+        <div class="chat-header">
+            <div class="header-content">
+                <h1><i class="bi bi-shield-check"></i> Uganda Disaster Response Agent</h1>
+            </div>
+            <div class="auth-status">
+                @if (!string.IsNullOrEmpty(locationStatus))
+                {
+                    <span class="location-status @(userLatitude.HasValue ? "location-acquired" : "location-pending")">
+                        @locationStatus
+                    </span>
+                }
+                @if (isAuthenticated)
+                {
+                    <span class="user-badge"><i class="bi bi-person-fill"></i> @(string.IsNullOrEmpty(userName) ? "User" : userName)</span>
+                    <a href="/profile" class="profile-link">My Profile</a>
+                }
+                else
+                {
+                    <a href="/profile" class="login-link"><i class="bi bi-lock-fill"></i> Login to save history</a>
+                }
+            </div>
+        </div>
+
+        @if (isEmergency && !string.IsNullOrEmpty(emergencySeverity))
+        {
+            <div class="emergency-alert-banner severity-@emergencySeverity?.ToLower()">
+                <span><i class="bi bi-exclamation-triangle-fill"></i> Emergency Detected - Severity: @emergencySeverity</span>
+            </div>
+        }
+    </div>
+
+    <div class="chat-messages-area" id="chatcontainer">
+        @if (messages.Count == 0)
+        {
+            <div class="welcome-message">
+                @if (isAuthenticated)
+                {
+                    <h3>Hello @userName! I'm Direco, your emergency response agent.</h3>
+                    <p class="authenticated-notice"><i class="bi bi-check-circle-fill"></i> Your conversations are being saved.</p>
+                }
+                else
+                {
+                    <h3>Hello! I'm Direco, your emergency response agent.</h3>
+                    <p class="login-notice"><i class="bi bi-info-circle"></i> <a href="/profile">Login</a> to save your conversations.</p>
+                }
+                <p><strong>I don't just chat - I take action for you:</strong></p>
+                <ul>
+                    <li><i class="bi bi-exclamation-triangle"></i> <strong>Request emergency services</strong> - I'll dispatch ambulance, police, or fire brigade</li>
+                    <li><i class="bi bi-geo-alt-fill"></i> <strong>Find nearby facilities</strong> - Hospitals, shelters, police stations</li>
+                    <li><i class="bi bi-house-fill"></i> <strong>Register you for shelter</strong> - Official registration sent to shelters</li>
+                    <li><i class="bi bi-telephone-fill"></i> <strong>Notify your family</strong> - I'll alert your emergency contacts</li>
+                    <li><i class="bi bi-truck"></i> <strong>Request evacuation</strong> - Coordinate evacuation teams</li>
+                    <li><i class="bi bi-clipboard-check"></i> <strong>Safety instructions</strong> - Disaster-specific guidance</li>
+                </ul>
+                <p class="example-prompt">Try: <em>"I'm in Bududa, there's a landslide and 5 people are trapped. We need help urgently."</em></p>
+            </div>
+        }
+        @foreach (var item in messages)
+        {
+            <div class="message-row">
+                @if (item.Role == 1)
+                {
+                    <div class="message-label user-label">You</div>
+                    <div class="user">
+                        <div class="msg">
+                            @item.Prompt
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="message-label bot-label"><i class="bi bi-robot"></i> Direco Agent</div>
+                    <div class="assistant">
+                        <div class="msg">
+                            @if (item.Prompt != null)
+                            {
+                                @((MarkupString)item.Prompt)
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="chat-input-section">
+        @if (recentActions.Any())
+        {
+            <div class="actions-bar">
+                <span class="actions-label"><i class="bi bi-lightning-fill"></i> Recent:</span>
+                @foreach (var action in recentActions.TakeLast(3).Reverse())
+                {
+                    <span class="action-chip">
+                        <i class="bi @GetActionIcon(action.ToolName)"></i>
+                        @action.Description
+                    </span>
+                }
+            </div>
+        }
+
+        <div class="input-area">
+            @if (!Processing)
             {
-                <div style="float: right; margin-right: 20px; margin-top: 10px">
-                    <b>Human</b>
-                </div>
-                <div class="user">
-                    <div class="msg">
-                        @item.Prompt
+                <div class="input-container">
+                    <textarea rows="2" @bind="prompt" placeholder="Describe your emergency or ask for help... e.g., 'There's flooding in my area, I need shelter'" @onkeydown="HandleKeyPress" />
+                    <div class="button-group">
+                        <button class="btn btn-primary send-btn" @onclick="CallAgent">
+                            <i class="bi bi-send-fill"></i> Send
+                        </button>
+                        <button class="btn btn-secondary restart-btn" @onclick="Restart" title="Start new conversation">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
                     </div>
                 </div>
             }
             else
             {
-                <div style="float: left; margin-left: 20px; margin-top: 10px">
-                    <b>Bot&nbsp;&nbsp;</b>
-                </div>
-                <div class="assistant">
-                    <div class="msg">
-                        @if (item.Prompt != null)
-                        {
-                            @((MarkupString)item.Prompt)
-                        }
-                    </div>
+                <div class="processing">
+                    <div class="spinner"></div>
+                    <span>Agent is analyzing and taking action...</span>
                 </div>
             }
         </div>
-    }
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="error-message"><i class="bi bi-exclamation-circle"></i> @ErrorMessage</div>
+        }
+    </div>
 </div>
-@if (!Processing)
-{
-    <textarea rows="3" cols="60" @bind="prompt" />
-    <br />
-    <button class="btn btn-primary"
-            @onclick="CallChat">
-        Send
-    </button>
-    <span>&nbsp;</span>
-    <button class="btn btn-info"
-            @onclick="Restart">
-        Restart
-    </button>
-}
-else
-{
-    <br>
-    <h4>Processing...</h4>
-}
-<br /><p style="color:red">@ErrorMessage</p>

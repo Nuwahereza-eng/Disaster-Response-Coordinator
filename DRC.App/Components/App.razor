@@ -6,19 +6,91 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="DRC.App.styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <HeadOutlet />
 </head>
 
 <body>
     <Routes />
     <script src="_framework/blazor.web.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script>
         window.ScrollToBottom = (elementName) => {
             element = document.getElementById(elementName);
-            element.scrollTop = element.scrollHeight - element.clientHeight;
+            if (element) {
+                element.scrollTop = element.scrollHeight - element.clientHeight;
+            }
         }
+        
+        // Initialize Lucide icons safely
+        window.initLucideIcons = () => {
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }
+        
+        // CRITICAL: Get user geolocation for emergency response
+        window.getGeolocation = () => {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve({ success: false, error: 'Geolocation not supported' });
+                    return;
+                }
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve({
+                            success: true,
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        });
+                    },
+                    (error) => {
+                        let errorMsg = 'Location unavailable';
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMsg = 'Location permission denied';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMsg = 'Location unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                errorMsg = 'Location request timed out';
+                                break;
+                        }
+                        resolve({ success: false, error: errorMsg });
+                    },
+                    { 
+                        enableHighAccuracy: true, 
+                        timeout: 10000, 
+                        maximumAge: 300000 // Cache for 5 minutes
+                    }
+                );
+            });
+        }
+
+        // Admin auth token storage
+        window.setAdminToken = (token) => {
+            if (token) {
+                sessionStorage.setItem('adminToken', token);
+            } else {
+                sessionStorage.removeItem('adminToken');
+            }
+        }
+
+        window.getAdminToken = () => {
+            return sessionStorage.getItem('adminToken');
+        }
+        
+        // Auto-init on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            window.initLucideIcons();
+        });
     </script>
 </body>
 

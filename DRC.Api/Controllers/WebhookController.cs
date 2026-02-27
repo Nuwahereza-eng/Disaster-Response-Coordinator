@@ -15,85 +15,175 @@ namespace DRC.Api.Controllers
     public class WebhookController : ControllerBase
     {
         private readonly IConfiguration _configuration;
-        public WebhookController(IConfiguration configuration)
+        private readonly ILogger<WebhookController> _logger;
+
+        public WebhookController(IConfiguration configuration, ILogger<WebhookController> logger)
         {
             _configuration = configuration;
+            _logger = logger;
         }
 
+        /// <summary>
+        /// WhatsApp Webhook Verification (required by Meta)
+        /// </summary>
         [AllowAnonymous]
         [HttpGet("whatsapp")]
-        public async Task<IActionResult> GetWhatsApp([FromQuery(Name = "hub.mode")] string hubMode, [FromQuery(Name = "hub.challenge")] int hubChallenge, [FromQuery(Name = "hub.verify_token")] string hubVerifyToken)
+        public async Task<IActionResult> GetWhatsApp(
+            [FromQuery(Name = "hub.mode")] string hubMode, 
+            [FromQuery(Name = "hub.challenge")] int hubChallenge, 
+            [FromQuery(Name = "hub.verify_token")] string hubVerifyToken)
         {
+            _logger.LogInformation("WhatsApp webhook verification request received");
+            
             var key = _configuration["Apps:Meta:Key"];
             if (!hubVerifyToken.Equals(key))
             {
+                _logger.LogWarning("WhatsApp webhook verification failed - invalid token");
                 return Forbid();
             }
 
+            _logger.LogInformation("WhatsApp webhook verified successfully");
             return Ok(hubChallenge);
         }
 
+        /// <summary>
+        /// Receives incoming WhatsApp messages and forwards to AI assistant
+        /// </summary>
         [AllowAnonymous]
         [HttpPost("whatsapp")]
-        public async Task<IActionResult> PostWhatsApp(IWhatsAppBusinessClient whatsAppBusinessClient, IWhatAppService whatAppService, [FromBody] dynamic messageReceived)
+        public async Task<IActionResult> PostWhatsApp(
+            IWhatsAppBusinessClient whatsAppBusinessClient, 
+            IWhatAppService whatAppService, 
+            [FromBody] dynamic messageReceived)
         {
             if (messageReceived is null)
             {
-                return BadRequest(new
-                {
-                    Message = "Message not received"
-                });
+                return BadRequest(new { Message = "Message not received" });
             }
 
-            var msg = messageReceived.ToString();
-            JsonDocument doc = JsonDocument.Parse(msg);
-
-            if (doc.RootElement.TryGetProperty("entry", out var entries) && entries.EnumerateArray().Any())
+            try
             {
-                var firstEntry = entries.EnumerateArray().First();
+                string msg = messageReceived.ToString();
+                _logger.LogDebug("Received WhatsApp webhook: {Message}", msg);
+                
+                JsonDocument doc = JsonDocument.Parse(msg);
 
-                if (firstEntry.TryGetProperty("changes", out var changes) && changes.EnumerateArray().Any())
+                if (doc.RootElement.TryGetProperty("entry", out var entries) && entries.EnumerateArray().Any())
                 {
-                    var firstChange = changes.EnumerateArray().First();
+                    var firstEntry = entries.EnumerateArray().First();
 
-                    if (firstChange.TryGetProperty("value", out var value))
+                    if (firstEntry.TryGetProperty("changes", out var changes) && changes.EnumerateArray().Any())
                     {
-                        bool isStatusesNull = !value.TryGetProperty("statuses", out var statuses) || statuses.ValueKind == JsonValueKind.Null || (statuses.ValueKind == JsonValueKind.Array && !statuses.EnumerateArray().Any());
+                        var firstChange = changes.EnumerateArray().First();
 
-                        if (isStatusesNull)
+                        if (firstChange.TryGetProperty("value", out var value))
                         {
-                            if (value.TryGetProperty("messages", out var messages) && messages.EnumerateArray().Any())
+                            // Skip status updates (delivery receipts, etc.)
+                            bool isStatusesNull = !value.TryGetProperty("statuses", out var statuses) || 
+                                statuses.ValueKind == JsonValueKind.Null || 
+                                (statuses.ValueKind == JsonValueKind.Array && !statuses.EnumerateArray().Any());
+
+                            if (isStatusesNull && value.TryGetProperty("messages", out var messages) && messages.EnumerateArray().Any())
                             {
                                 var firstMessage = messages.EnumerateArray().First();
+                                var from = firstMessage.GetProperty("from").GetString() ?? "";
 
                                 if (firstMessage.TryGetProperty("type", out var type))
                                 {
-                                    string messageType = type.GetString();
+                                    string messageType = type.GetString() ?? "";
+                                    _logger.LogInformation("Processing WhatsApp message type: {Type} from {From}", messageType, from);
+
+                                    // Handle TEXT messages
                                     if (messageType.Equals("text"))
                                     {
                                         var textMessageReceived = JsonConvert.DeserializeObject<TextMessageReceived>(Convert.ToString(messageReceived)) as TextMessageReceived;
-                                        var textMessage = new List<TextMessage>(textMessageReceived.Entry.SelectMany(x => x.Changes).SelectMany(x => x.Value.Messages));
+                                        var textMessages = new List<TextMessage>(textMessageReceived?.Entry.SelectMany(x => x.Changes).SelectMany(x => x.Value.Messages) ?? []);
 
-                                        MarkMessageRequest markMessageRequest = new MarkMessageRequest();
-                                        var metadata = textMessage.SingleOrDefault();
-                                        markMessageRequest.MessageId = metadata.Id;
-                                        markMessageRequest.Status = "read";
-
-                                        //await whatsAppBusinessClient.MarkMessageAsReadAsync(markMessageRequest);
-                                        await whatAppService.ReceiveMessage(metadata.From, metadata.Text.Body);
-                                        await whatsAppBusinessClient.MarkMessageAsReadAsync(markMessageRequest);
-                                        return Ok(new
+                                        var metadata = textMessages.SingleOrDefault();
+                                        if (metadata != null)
                                         {
-                                            Message = "Text Message received"
-                                        });
+                                            // Mark as read
+                                            await MarkAsRead(whatsAppBusinessClient, metadata.Id);
+                                            
+                                            // Process message
+                                            await whatAppService.ReceiveMessage(metadata.From, metadata.Text.Body);
+                                            
+                                            return Ok(new { Message = "Text message processed" });
+                                        }
+                                    }
+                                    // Handle LOCATION messages
+                                    else if (messageType.Equals("location"))
+                                    {
+                                        if (firstMessage.TryGetProperty("location", out var location))
+                                        {
+                                            var latitude = location.GetProperty("latitude").GetDouble();
+                                            var longitude = location.GetProperty("longitude").GetDouble();
+                                            var messageId = firstMessage.GetProperty("id").GetString() ?? "";
+
+                                            // Mark as read
+                                            await MarkAsRead(whatsAppBusinessClient, messageId);
+                                            
+                                            // Process location
+                                            await whatAppService.ReceiveLocation(from, latitude, longitude);
+                                            
+                                            return Ok(new { Message = "Location message processed" });
+                                        }
+                                    }
+                                    // Handle INTERACTIVE messages (button clicks, list selections)
+                                    else if (messageType.Equals("interactive"))
+                                    {
+                                        if (firstMessage.TryGetProperty("interactive", out var interactive))
+                                        {
+                                            var interactiveType = interactive.GetProperty("type").GetString();
+                                            string responseText = "";
+                                            var messageId = firstMessage.GetProperty("id").GetString() ?? "";
+
+                                            if (interactiveType == "button_reply")
+                                            {
+                                                responseText = interactive.GetProperty("button_reply").GetProperty("title").GetString() ?? "";
+                                            }
+                                            else if (interactiveType == "list_reply")
+                                            {
+                                                responseText = interactive.GetProperty("list_reply").GetProperty("title").GetString() ?? "";
+                                            }
+
+                                            if (!string.IsNullOrEmpty(responseText))
+                                            {
+                                                await MarkAsRead(whatsAppBusinessClient, messageId);
+                                                await whatAppService.ReceiveMessage(from, responseText);
+                                                return Ok(new { Message = "Interactive message processed" });
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
+
+                return Ok();
             }
-            return Ok();
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing WhatsApp webhook");
+                return Ok(); // Return OK to prevent Meta from retrying
+            }
+        }
+
+        private async Task MarkAsRead(IWhatsAppBusinessClient client, string messageId)
+        {
+            try
+            {
+                await client.MarkMessageAsReadAsync(new MarkMessageRequest
+                {
+                    MessageId = messageId,
+                    Status = "read"
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to mark message {MessageId} as read", messageId);
+            }
         }
     }
 }

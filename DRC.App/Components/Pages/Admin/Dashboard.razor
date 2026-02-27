@@ -1,0 +1,947 @@
+@page "/admin"
+@layout DRC.App.Components.Layout.AdminLayout
+@rendermode InteractiveServer
+@inject AdminClientService AdminService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using DRC.App.Services
+
+<PageTitle>Admin Dashboard - Uganda Disaster Response</PageTitle>
+
+<div class="admin-wrapper">
+    @if (isCheckingAuth)
+    {
+        <!-- Loading while checking auth -->
+        <div class="login-screen">
+            <div class="loading-overlay">
+                <div class="loader"></div>
+                <span style="color: #94a3b8;">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!isAuthenticated)
+    {
+        <!-- Login Screen -->
+        <div class="login-screen">
+            <div class="login-card">
+                <div class="login-header">
+                    <div class="logo"><i data-lucide="shield-check"></i></div>
+                    <h1>Uganda Disaster Response</h1>
+                    <p>Admin Control Center</p>
+                </div>
+                <div class="login-form">
+                    <div class="form-group">
+                        <label><i data-lucide="mail"></i> Email Address</label>
+                        <input type="email" @bind="loginEmail" placeholder="admin@drc.ug" class="form-input" />
+                    </div>
+                    <div class="form-group">
+                        <label><i data-lucide="lock"></i> Password</label>
+                        <input type="password" @bind="loginPassword" placeholder="Enter password" class="form-input" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(loginError))
+                    {
+                        <div class="error-message"><i data-lucide="alert-circle"></i> @loginError</div>
+                    }
+                    <button class="login-btn" @onclick="LoginAsync" disabled="@isLoggingIn">
+                        @if (isLoggingIn)
+                        {
+                            <span class="spinner-sm"></span>
+                            <span>Signing in...</span>
+                        }
+                        else
+                        {
+                            <span>Sign In</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Admin Dashboard -->
+        <div class="admin-layout">
+            <!-- Sidebar -->
+            <aside class="admin-sidebar">
+                <div class="sidebar-header">
+                    <div class="logo"><i data-lucide="shield-check"></i></div>
+                    <h2>DRC Admin</h2>
+                </div>
+                <nav class="sidebar-nav">
+                    <button class="nav-item @(activeSection == "dashboard" ? "active" : "")" @onclick='() => SetSection("dashboard")'>
+                        <span class="nav-icon"><i data-lucide="layout-dashboard"></i></span>
+                        <span class="nav-text">Dashboard</span>
+                    </button>
+                    <button class="nav-item @(activeSection == "emergencies" ? "active" : "")" @onclick='() => SetSection("emergencies")'>
+                        <span class="nav-icon"><i data-lucide="alert-triangle"></i></span>
+                        <span class="nav-text">Emergencies</span>
+                        @if (stats?.PendingEmergencyRequests > 0)
+                        {
+                            <span class="badge danger">@stats.PendingEmergencyRequests</span>
+                        }
+                    </button>
+                    <button class="nav-item @(activeSection == "shelters" ? "active" : "")" @onclick='() => SetSection("shelters")'>
+                        <span class="nav-icon"><i data-lucide="home"></i></span>
+                        <span class="nav-text">Shelters</span>
+                        @if (stats?.PendingShelterRegistrations > 0)
+                        {
+                            <span class="badge info">@stats.PendingShelterRegistrations</span>
+                        }
+                    </button>
+                    <button class="nav-item @(activeSection == "evacuations" ? "active" : "")" @onclick='() => SetSection("evacuations")'>
+                        <span class="nav-icon"><i data-lucide="truck"></i></span>
+                        <span class="nav-text">Evacuations</span>
+                        @if (stats?.PendingEvacuationRequests > 0)
+                        {
+                            <span class="badge info">@stats.PendingEvacuationRequests</span>
+                        }
+                    </button>
+                    <button class="nav-item @(activeSection == "users" ? "active" : "")" @onclick='() => SetSection("users")'>
+                        <span class="nav-icon"><i data-lucide="users"></i></span>
+                        <span class="nav-text">Users</span>
+                    </button>
+                    <button class="nav-item @(activeSection == "facilities" ? "active" : "")" @onclick='() => SetSection("facilities")'>
+                        <span class="nav-icon"><i data-lucide="building-2"></i></span>
+                        <span class="nav-text">Facilities</span>
+                    </button>
+                    <button class="nav-item @(activeSection == "notifications" ? "active" : "")" @onclick='() => SetSection("notifications")'>
+                        <span class="nav-icon"><i data-lucide="bell"></i></span>
+                        <span class="nav-text">Notifications</span>
+                    </button>
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="user-info">
+                        <div class="avatar">@(currentUser?.FullName?.Substring(0, 1) ?? "A")</div>
+                        <div class="user-details">
+                            <span class="user-name">@currentUser?.FullName</span>
+                            <span class="user-role">Administrator</span>
+                        </div>
+                    </div>
+                    <button class="logout-btn" @onclick="Logout">
+                        <i data-lucide="log-out"></i> Logout
+                    </button>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="admin-main">
+                <header class="main-header">
+                    <div class="header-title">
+                        <h1>@GetSectionTitle()</h1>
+                        <span class="header-date">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</span>
+                    </div>
+                    <button class="refresh-btn" @onclick="RefreshData" disabled="@isLoading">
+                        <i data-lucide="refresh-cw" class="@(isLoading ? "spinning" : "")"></i> Refresh
+                    </button>
+                </header>
+
+                <div class="main-content">
+                    @if (isLoading)
+                    {
+                        <div class="loading-overlay">
+                            <div class="loader"></div>
+                            <span>Loading data...</span>
+                        </div>
+                    }
+                    else
+                    {
+                        @switch (activeSection)
+                        {
+                            case "dashboard":
+                                @RenderDashboard()
+                                break;
+                            case "emergencies":
+                                @RenderEmergencies()
+                                break;
+                            case "shelters":
+                                @RenderShelters()
+                                break;
+                            case "evacuations":
+                                @RenderEvacuations()
+                                break;
+                            case "users":
+                                @RenderUsers()
+                                break;
+                            case "facilities":
+                                @RenderFacilities()
+                                break;
+                            case "notifications":
+                                @RenderNotifications()
+                                break;
+                        }
+                    }
+                </div>
+            </main>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+    private bool isLoading = false;
+    private bool isLoggingIn = false;
+    private bool isCheckingAuth = true; // Start true to show loading while checking token
+    private string loginEmail = "admin@drc.ug";
+    private string loginPassword = "";
+    private string? loginError;
+    private string activeSection = "dashboard";
+    
+    private UserDto? currentUser;
+    private DashboardStats? stats;
+    private List<EmergencyRequestDto>? emergencies;
+    private List<ShelterRegistrationDto>? shelters;
+    private List<EvacuationRequestDto>? evacuations;
+    private List<UserDto>? users;
+    private List<FacilityDto>? facilities;
+    private List<NotificationDto>? notifications;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Initial check - will be updated in OnAfterRenderAsync
+        if (AdminService.IsAuthenticated)
+        {
+            isAuthenticated = true;
+            isCheckingAuth = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Try to restore auth token from sessionStorage
+            try
+            {
+                var token = await JS.InvokeAsync<string>("getAdminToken");
+                if (!string.IsNullOrEmpty(token))
+                {
+                    AdminService.SetAuthToken(token);
+                    isAuthenticated = true;
+                    await LoadDashboard();
+                }
+            }
+            catch { }
+            
+            isCheckingAuth = false;
+            StateHasChanged();
+        }
+
+        // Refresh Lucide icons after each render
+        try
+        {
+            await JS.InvokeVoidAsync("initLucideIcons");
+        }
+        catch
+        {
+            // Ignore if Lucide not loaded
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        loginError = null;
+        isLoggingIn = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AdminService.LoginAsync(loginEmail, loginPassword);
+            if (result?.Success == true)
+            {
+                currentUser = result.User;
+                isAuthenticated = true;
+                
+                // Save token to sessionStorage for persistence
+                if (!string.IsNullOrEmpty(result.Token))
+                {
+                    await JS.InvokeVoidAsync("setAdminToken", result.Token);
+                }
+                
+                await LoadDashboard();
+            }
+            else
+            {
+                loginError = result?.Message ?? "Invalid email or password";
+            }
+        }
+        catch (Exception ex)
+        {
+            loginError = $"Login failed: {ex.Message}";
+        }
+        finally
+        {
+            isLoggingIn = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadDashboard()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            stats = await AdminService.GetDashboardAsync();
+            emergencies = await AdminService.GetEmergencyRequestsAsync();
+            shelters = await AdminService.GetShelterRegistrationsAsync();
+            evacuations = await AdminService.GetEvacuationRequestsAsync();
+            users = await AdminService.GetUsersAsync();
+            facilities = await AdminService.GetFacilitiesAsync();
+            notifications = await AdminService.GetNotificationsAsync();
+        }
+        catch (Exception ex)
+        {
+            loginError = $"Failed to load data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadDashboard();
+    }
+
+    private void SetSection(string section)
+    {
+        activeSection = section;
+        StateHasChanged();
+    }
+
+    private string GetSectionTitle() => activeSection switch
+    {
+        "dashboard" => "Dashboard Overview",
+        "emergencies" => "Emergency Requests",
+        "shelters" => "Shelter Registrations",
+        "evacuations" => "Evacuation Requests",
+        "users" => "User Management",
+        "facilities" => "Facilities",
+        "notifications" => "Notification History",
+        _ => "Dashboard"
+    };
+
+    private async Task Logout()
+    {
+        // Clear token from sessionStorage
+        await JS.InvokeVoidAsync("setAdminToken", (string?)null);
+        AdminService.SetAuthToken(null);
+        
+        isAuthenticated = false;
+        currentUser = null;
+        stats = null;
+        loginPassword = "";
+        activeSection = "dashboard";
+    }
+
+    // Dashboard Section
+    private RenderFragment RenderDashboard() => __builder =>
+    {
+        <div class="dashboard-section">
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card blue" @onclick='() => SetSection("emergencies")'>
+                    <div class="stat-icon"><i data-lucide="alert-triangle"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-value">@(stats?.TotalEmergencyRequests ?? 0)</div>
+                        <div class="stat-label">Emergency Requests</div>
+                    </div>
+                    <div class="stat-footer">
+                        <span class="stat-pending">@(stats?.PendingEmergencyRequests ?? 0) pending</span>
+                    </div>
+                </div>
+                <div class="stat-card blue" @onclick='() => SetSection("shelters")'>
+                    <div class="stat-icon"><i data-lucide="home"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-value">@(stats?.TotalShelterRegistrations ?? 0)</div>
+                        <div class="stat-label">Shelter Registrations</div>
+                    </div>
+                    <div class="stat-footer">
+                        <span class="stat-pending">@(stats?.PendingShelterRegistrations ?? 0) pending</span>
+                    </div>
+                </div>
+                <div class="stat-card blue" @onclick='() => SetSection("evacuations")'>
+                    <div class="stat-icon"><i data-lucide="truck"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-value">@(stats?.TotalEvacuationRequests ?? 0)</div>
+                        <div class="stat-label">Evacuation Requests</div>
+                    </div>
+                    <div class="stat-footer">
+                        <span class="stat-pending">@(stats?.PendingEvacuationRequests ?? 0) pending</span>
+                    </div>
+                </div>
+                <div class="stat-card blue" @onclick='() => SetSection("users")'>
+                    <div class="stat-icon"><i data-lucide="users"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-value">@(stats?.TotalUsers ?? 0)</div>
+                        <div class="stat-label">Registered Users</div>
+                    </div>
+                    <div class="stat-footer">
+                        <span>Active accounts</span>
+                    </div>
+                </div>
+                <div class="stat-card blue" @onclick='() => SetSection("facilities")'>
+                    <div class="stat-icon"><i data-lucide="building-2"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-value">@(stats?.TotalFacilities ?? 0)</div>
+                        <div class="stat-label">Facilities</div>
+                    </div>
+                    <div class="stat-footer">
+                        <span>Hospitals & Shelters</span>
+                    </div>
+                </div>
+                <div class="stat-card blue" @onclick='() => SetSection("notifications")'>
+                    <div class="stat-icon"><i data-lucide="bell"></i></div>
+                    <div class="stat-content">
+                        <div class="stat-value">@(stats?.TotalNotifications ?? 0)</div>
+                        <div class="stat-label">Notifications</div>
+                    </div>
+                    <div class="stat-footer">
+                        <span>Messages sent</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="dashboard-grid">
+                <div class="activity-card">
+                    <div class="card-header">
+                        <h3><i data-lucide="alert-triangle"></i> Recent Emergencies</h3>
+                        <button class="view-all-btn" @onclick='() => SetSection("emergencies")'>View All</button>
+                    </div>
+                    <div class="card-content">
+                        @if (emergencies?.Any() == true)
+                        {
+                            @foreach (var e in emergencies.Take(5))
+                            {
+                                <div class="activity-item">
+                                    <span class="activity-icon">@GetTypeEmoji(e.Type)</span>
+                                    <div class="activity-info">
+                                        <span class="activity-title">@e.Type - @e.Severity</span>
+                                        <span class="activity-desc">@TruncateText(e.Description, 40)</span>
+                                    </div>
+                                    <span class="activity-time">@FormatTime(e.CreatedAt)</span>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-activity">No recent emergencies</div>
+                        }
+                    </div>
+                </div>
+                <div class="activity-card">
+                    <div class="card-header">
+                        <h3><i data-lucide="home"></i> Recent Shelter Requests</h3>
+                        <button class="view-all-btn" @onclick='() => SetSection("shelters")'>View All</button>
+                    </div>
+                    <div class="card-content">
+                        @if (shelters?.Any() == true)
+                        {
+                            @foreach (var s in shelters.Take(5))
+                            {
+                                <div class="activity-item">
+                                    <span class="activity-icon"><i data-lucide="users"></i></span>
+                                    <div class="activity-info">
+                                        <span class="activity-title">@(s.FullName ?? "Anonymous") - @s.FamilySize people</span>
+                                        <span class="activity-desc">@s.Status</span>
+                                    </div>
+                                    <span class="activity-time">@FormatTime(s.CreatedAt)</span>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-activity">No recent shelter requests</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    // Emergencies Section
+    private RenderFragment RenderEmergencies() => __builder =>
+    {
+        <div class="data-section">
+            @if (emergencies?.Any() == true)
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Severity</th>
+                                <th>Location</th>
+                                <th>Description</th>
+                                <th>Contact</th>
+                                <th>Services</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var e in emergencies)
+                            {
+                                <tr class="severity-row-@e.Severity.ToLower()">
+                                    <td><strong>#@e.Id</strong></td>
+                                    <td>@GetTypeEmoji(e.Type) @e.Type</td>
+                                    <td><span class="badge @GetSeverityClass(e.Severity)">@e.Severity</span></td>
+                                    <td>@TruncateText(e.Location ?? "Unknown", 25)</td>
+                                    <td>@TruncateText(e.Description, 30)</td>
+                                    <td>@(e.UserPhone ?? "N/A")</td>
+                                    <td class="services-cell">
+                                        @if (e.AmbulanceDispatched) { <span class="service-icon" title="Ambulance">🚑</span> }
+                                        @if (e.FireBrigadeDispatched) { <span class="service-icon" title="Fire Brigade">🚒</span> }
+                                        @if (e.PoliceDispatched) { <span class="service-icon" title="Police">🚔</span> }
+                                    </td>
+                                    <td>
+                                        <select class="status-select" value="@e.Status" 
+                                                @onchange="evt => UpdateEmergencyStatus(e.Id, evt.Value?.ToString())">
+                                            <option value="Pending">Pending</option>
+                                            <option value="Acknowledged">Acknowledged</option>
+                                            <option value="Dispatched">Dispatched</option>
+                                            <option value="InProgress">In Progress</option>
+                                            <option value="Resolved">Resolved</option>
+                                        </select>
+                                    </td>
+                                    <td>@e.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                    <td>
+                                        <button class="action-btn success" @onclick="() => ResolveEmergency(e.Id)" title="Mark Resolved"><i data-lucide="check"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <span class="empty-icon"><i data-lucide="alert-triangle"></i></span>
+                    <h3>No Emergency Requests</h3>
+                    <p>All clear! No emergency requests at this time.</p>
+                </div>
+            }
+        </div>
+    };
+
+    // Shelters Section
+    private RenderFragment RenderShelters() => __builder =>
+    {
+        <div class="data-section">
+            @if (shelters?.Any() == true)
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>Family Size</th>
+                                <th>Composition</th>
+                                <th>Special Needs</th>
+                                <th>Shelter</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in shelters)
+                            {
+                                <tr>
+                                    <td><strong>#@s.Id</strong></td>
+                                    <td>@(s.FullName ?? "Anonymous")</td>
+                                    <td>@(s.Phone ?? "N/A")</td>
+                                    <td><strong>@s.FamilySize</strong> people</td>
+                                    <td>
+                                        <span class="composition">
+                                            Adults: @s.Adults | Children: @s.Children | Elderly: @s.Elderly
+                                        </span>
+                                    </td>
+                                    <td>@(string.IsNullOrEmpty(s.SpecialNeeds) ? "None" : TruncateText(s.SpecialNeeds, 20))</td>
+                                    <td>@(s.ShelterName ?? "Unassigned")</td>
+                                    <td><span class="badge @GetStatusClass(s.Status)">@s.Status</span></td>
+                                    <td>@s.CreatedAt.ToString("MMM dd, HH:mm")</td>
+                                    <td>
+                                        <button class="action-btn primary" @onclick="() => CheckInShelter(s.Id)" title="Check In"><i data-lucide="clipboard-check"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <span class="empty-icon"><i data-lucide="home"></i></span>
+                    <h3>No Shelter Registrations</h3>
+                    <p>No shelter requests at this time.</p>
+                </div>
+            }
+        </div>
+    };
+
+    // Evacuations Section
+    private RenderFragment RenderEvacuations() => __builder =>
+    {
+        <div class="data-section">
+            @if (evacuations?.Any() == true)
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Phone</th>
+                                <th>People</th>
+                                <th>Pickup Location</th>
+                                <th>Priority</th>
+                                <th>Vehicle</th>
+                                <th>Driver</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var e in evacuations)
+                            {
+                                <tr class="priority-row-@e.Priority.ToLower()">
+                                    <td><strong>#@e.Id</strong></td>
+                                    <td>@(e.FullName ?? "Anonymous")</td>
+                                    <td>@(e.Phone ?? "N/A")</td>
+                                    <td>
+                                        <strong>@e.NumberOfPeople</strong>
+                                        @if (e.HasElderly || e.HasChildren || e.HasDisabled)
+                                        {
+                                            <span class="needs-icons">
+                                                @if (e.HasElderly) { <span title="Elderly">👴</span> }
+                                                @if (e.HasChildren) { <span title="Children">👶</span> }
+                                                @if (e.HasDisabled) { <span title="Disabled">♿</span> }
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>@TruncateText(e.PickupLocation, 25)</td>
+                                    <td><span class="badge @GetPriorityClass(e.Priority)">@e.Priority</span></td>
+                                    <td>
+                                        <input type="text" class="inline-input" value="@e.AssignedVehicle" 
+                                               placeholder="Vehicle #"
+                                               @onchange="evt => AssignVehicle(e.Id, evt.Value?.ToString())" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="inline-input" value="@e.DriverName" 
+                                               placeholder="Driver name"
+                                               @onchange="evt => AssignDriver(e.Id, evt.Value?.ToString())" />
+                                    </td>
+                                    <td><span class="badge @GetStatusClass(e.Status)">@e.Status</span></td>
+                                    <td>
+                                        <button class="action-btn success" @onclick="() => CompleteEvacuation(e.Id)" title="Complete"><i data-lucide="check" style="width:14px;height:14px;"></i></button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <span class="empty-icon">🚁</span>
+                    <h3>No Evacuation Requests</h3>
+                    <p>No evacuation requests at this time.</p>
+                </div>
+            }
+        </div>
+    };
+
+    // Users Section
+    private RenderFragment RenderUsers() => __builder =>
+    {
+        <div class="data-section">
+            @if (users?.Any() == true)
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Joined</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var u in users)
+                            {
+                                <tr>
+                                    <td><strong>#@u.Id</strong></td>
+                                    <td>@u.FullName</td>
+                                    <td>@u.Email</td>
+                                    <td>@u.Phone</td>
+                                    <td><span class="badge @GetRoleClass(u.Role)">@u.Role</span></td>
+                                    <td>
+                                        <span class="status-dot @(u.IsActive ? "active" : "inactive")"></span>
+                                        @(u.IsActive ? "Active" : "Inactive")
+                                    </td>
+                                    <td>@u.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <span class="empty-icon"><i data-lucide="users"></i></span>
+                    <h3>No Users</h3>
+                    <p>No registered users yet.</p>
+                </div>
+            }
+        </div>
+    };
+
+    // Facilities Section
+    private RenderFragment RenderFacilities() => __builder =>
+    {
+        <div class="data-section">
+            @if (facilities?.Any() == true)
+            {
+                <div class="cards-grid">
+                    @foreach (var f in facilities)
+                    {
+                        <div class="facility-card">
+                            <div class="facility-header">
+                                <span class="facility-icon">@GetFacilityIcon(f.Type)</span>
+                                <div class="facility-info">
+                                    <h4>@f.Name</h4>
+                                    <span class="facility-type">@f.Type</span>
+                                </div>
+                                <span class="facility-status @(f.IsOperational ? "operational" : "closed")">
+                                    @(f.IsOperational ? "Operational" : "Closed")
+                                </span>
+                            </div>
+                            <div class="facility-details">
+                                <p><i data-lucide="map-pin"></i> @(f.Address ?? "No address")</p>
+                                <p><i data-lucide="phone"></i> @(f.Phone ?? "No phone")</p>
+                                @if (f.Capacity.HasValue)
+                                {
+                                    <div class="capacity-bar">
+                                        <div class="capacity-fill" style="width: @GetCapacityPercent(f.CurrentOccupancy, f.Capacity)%"></div>
+                                    </div>
+                                    <span class="capacity-text">@(f.CurrentOccupancy ?? 0) / @f.Capacity capacity</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <span class="empty-icon"><i data-lucide="building-2"></i></span>
+                    <h3>No Facilities</h3>
+                    <p>No facilities registered yet.</p>
+                </div>
+            }
+        </div>
+    };
+
+    // Notifications Section
+    private RenderFragment RenderNotifications() => __builder =>
+    {
+        <div class="data-section">
+            @if (notifications?.Any() == true)
+            {
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Type</th>
+                                <th>Recipient</th>
+                                <th>Channel</th>
+                                <th>Subject</th>
+                                <th>Status</th>
+                                <th>Sent At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var n in notifications)
+                            {
+                                <tr>
+                                    <td><strong>#@n.Id</strong></td>
+                                    <td>@GetNotificationTypeIcon(n.Type) @n.Type</td>
+                                    <td>@(n.RecipientName ?? n.RecipientPhone)</td>
+                                    <td>@GetChannelIcon(n.Channel) @n.Channel</td>
+                                    <td>@TruncateText(n.Subject, 30)</td>
+                                    <td><span class="badge @GetNotificationStatusClass(n.Status)">@n.Status</span></td>
+                                    <td>@(n.SentAt?.ToString("MMM dd, HH:mm") ?? "Pending")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <span class="empty-icon"><i data-lucide="bell"></i></span>
+                    <h3>No Notifications</h3>
+                    <p>No notifications sent yet.</p>
+                </div>
+            }
+        </div>
+    };
+
+    // Helper Methods
+    private string GetTypeEmoji(string type) => type?.ToLower() switch
+    {
+        "medical" => "Medical",
+        "fire" => "Fire",
+        "flood" => "Flood",
+        "accident" => "Accident",
+        "crime" => "Crime",
+        "natural" => "Natural",
+        _ => "Other"
+    };
+
+    private string TruncateText(string? text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length <= maxLength ? text : text.Substring(0, maxLength) + "...";
+    }
+
+    private string FormatTime(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return dt.ToString("MMM dd");
+    }
+
+    private string GetSeverityClass(string severity) => severity?.ToLower() switch
+    {
+        "critical" => "danger",
+        "high" => "warning",
+        "medium" => "info",
+        "low" => "success",
+        _ => "secondary"
+    };
+
+    private string GetStatusClass(string status) => status?.ToLower() switch
+    {
+        "pending" => "warning",
+        "approved" or "confirmed" or "dispatched" => "info",
+        "completed" or "resolved" or "checkedin" => "success",
+        "cancelled" or "rejected" => "danger",
+        _ => "secondary"
+    };
+
+    private string GetPriorityClass(string priority) => priority?.ToLower() switch
+    {
+        "critical" => "danger",
+        "high" => "warning",
+        "medium" => "info",
+        "low" => "success",
+        _ => "secondary"
+    };
+
+    private string GetRoleClass(string role) => role?.ToLower() switch
+    {
+        "admin" => "danger",
+        "responder" => "warning",
+        _ => "info"
+    };
+
+    private string GetFacilityIcon(string type) => type?.ToLower() switch
+    {
+        "hospital" => "Hospital",
+        "shelter" => "Shelter",
+        "firestation" => "Fire Station",
+        "policestation" => "Police Station",
+        _ => "Building"
+    };
+
+    private string GetNotificationTypeIcon(string type) => type?.ToLower() switch
+    {
+        "emergency" => "Emergency",
+        "evacuation" => "Evacuation",
+        "shelter" => "Shelter",
+        _ => "Notification"
+    };
+
+    private string GetChannelIcon(string channel) => channel?.ToLower() switch
+    {
+        "whatsapp" => "WhatsApp",
+        "sms" => "SMS",
+        "email" => "Email",
+        _ => "Other"
+    };
+
+    private string GetNotificationStatusClass(string status) => status?.ToLower() switch
+    {
+        "sent" or "delivered" => "success",
+        "pending" => "warning",
+        "failed" => "danger",
+        _ => "secondary"
+    };
+
+    private int GetCapacityPercent(int? current, int? max)
+    {
+        if (!max.HasValue || max.Value == 0) return 0;
+        return Math.Min(100, (int)((current ?? 0) * 100.0 / max.Value));
+    }
+
+    // Action Methods
+    private async Task UpdateEmergencyStatus(int id, string? status)
+    {
+        if (string.IsNullOrEmpty(status)) return;
+        await AdminService.UpdateEmergencyStatusAsync(id, status);
+        await RefreshData();
+    }
+
+    private async Task ResolveEmergency(int id)
+    {
+        await AdminService.UpdateEmergencyStatusAsync(id, "Resolved");
+        await RefreshData();
+    }
+
+    private async Task CheckInShelter(int id)
+    {
+        await AdminService.CheckInShelterAsync(id);
+        await RefreshData();
+    }
+
+    private async Task AssignVehicle(int id, string? vehicle)
+    {
+        if (string.IsNullOrEmpty(vehicle)) return;
+        await AdminService.AssignEvacuationVehicleAsync(id, vehicle, null, null);
+        await RefreshData();
+    }
+
+    private async Task AssignDriver(int id, string? driver)
+    {
+        if (string.IsNullOrEmpty(driver)) return;
+        var evac = evacuations?.FirstOrDefault(e => e.Id == id);
+        await AdminService.AssignEvacuationVehicleAsync(id, evac?.AssignedVehicle ?? "", driver, null);
+        await RefreshData();
+    }
+
+    private async Task CompleteEvacuation(int id)
+    {
+        await RefreshData();
+    }
+}

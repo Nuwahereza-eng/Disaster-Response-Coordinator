@@ -1,25 +1,29 @@
 #See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
-USER app
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS base
 WORKDIR /app
 EXPOSE 8080
-EXPOSE 8081
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["DRC.Api/DRC.Api.csproj", "DRC.Api/"]
-RUN dotnet restore "./DRC.Api/DRC.Api.csproj"
-COPY . .
-WORKDIR "/src/DRC.Api"
-RUN dotnet build "./DRC.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./DRC.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# Copy only csproj files first for better layer caching
+COPY DRC.Api/DRC.Api.csproj DRC.Api/
+COPY DRC.Api.ServiceDefaults/DRC.Api.ServiceDefaults.csproj DRC.Api.ServiceDefaults/
+
+# Restore as a separate layer
+RUN dotnet restore DRC.Api/DRC.Api.csproj
+
+# Copy only the necessary source files
+COPY DRC.Api/ DRC.Api/
+COPY DRC.Api.ServiceDefaults/ DRC.Api.ServiceDefaults/
+
+# Build and publish in one step
+WORKDIR /src/DRC.Api
+RUN dotnet publish -c $BUILD_CONFIGURATION -o /app/publish --no-restore /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "DRC.Api.dll"]

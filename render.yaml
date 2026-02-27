@@ -1,0 +1,53 @@
+services:
+  # Backend API
+  - type: web
+    name: drc-api
+    runtime: docker
+    dockerfilePath: ./DRC.Api/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      - key: ConnectionStrings__redis
+        fromService:
+          type: redis
+          name: drc-redis
+          property: connectionString
+      - key: Apps__Gemini__Key
+        sync: false  # Set this manually in Render dashboard
+      - key: Apps__Meta__AccessToken
+        sync: false  # Set this manually in Render dashboard
+      - key: Apps__Meta__Key
+        sync: false
+      - key: Apps__Meta__WhatsAppBusinessAccountId
+        sync: false
+      - key: Apps__Meta__WhatsAppBusinessPhoneNumberId
+        sync: false
+
+  # Frontend Blazor App
+  - type: web
+    name: drc-app
+    runtime: docker
+    dockerfilePath: ./DRC.App/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      - key: services__api__http__0
+        fromService:
+          type: web
+          name: drc-api
+          property: host
+
+  # Redis Cache
+  - type: redis
+    name: drc-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
