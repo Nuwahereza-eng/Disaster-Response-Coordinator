@@ -47,6 +47,17 @@ namespace DRC.Api.Controllers
             return Ok(result);
         }
 
+        // Temporary endpoint to reset admin password - REMOVE IN PRODUCTION
+        [HttpPost("reset-admin")]
+        public async Task<IActionResult> ResetAdminPassword([FromBody] AdminResetRequest request)
+        {
+            if (request.SecretKey != "drc-reset-2024")
+                return Unauthorized(new { message = "Invalid secret key" });
+
+            var result = await _authService.ResetAdminPasswordAsync(request.NewPassword);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
         [Authorize]
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()

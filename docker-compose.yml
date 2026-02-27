@@ -8,6 +8,16 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__redis=redis:6379
+      - Apps__Gemini__Key=${Apps__Gemini__Key}
+      - Apps__Meta__AppName=${Apps__Meta__AppName}
+      - Apps__Meta__Key=${Apps__Meta__Key}
+      - Apps__Meta__AccessToken=${Apps__Meta__AccessToken}
+      - Apps__Meta__WhatsAppBusinessAccountId=${Apps__Meta__WhatsAppBusinessAccountId}
+      - Apps__Meta__WhatsAppBusinessId=${Apps__Meta__WhatsAppBusinessId}
+      - Apps__Meta__WhatsAppBusinessPhoneNumberId=${Apps__Meta__WhatsAppBusinessPhoneNumberId}
+      - Jwt__Key=${Jwt__Key}
+    volumes:
+      - drc-data:/app/data
     build:
       context: .
       dockerfile: DRC.Api/Dockerfile
@@ -38,6 +48,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  drc-data:
 
 networks:
   default:

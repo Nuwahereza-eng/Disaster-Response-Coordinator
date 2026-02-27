@@ -123,4 +123,17 @@ namespace DRC.Api.Models
         Delivered,
         Failed
     }
+
+    /// <summary>
+    /// Represents a chat message in user's history
+    /// </summary>
+    public class ChatHistoryItem
+    {
+        public int Id { get; set; }
+        public Guid SessionId { get; set; }
+        public string Role { get; set; } = "user";
+        public string Content { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+        public List<AgentAction>? Actions { get; set; }
+    }
 }

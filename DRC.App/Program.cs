@@ -12,9 +12,14 @@ namespace DRC.App
             builder.AddServiceDefaults();
             StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration); //Add this
 
-            var apiUrl = builder.Configuration["services__api__http__0"] 
+            // Get API URL from environment - supports both __ and : separators
+            var apiUrl = Environment.GetEnvironmentVariable("services__api__http__0")
+                ?? Environment.GetEnvironmentVariable("ApiUrl")
+                ?? builder.Configuration["services:api:http:0"] 
                 ?? builder.Configuration["ApiUrl"] 
                 ?? "http://localhost:8080";
+            
+            Console.WriteLine($"API URL configured as: {apiUrl}");
 
             builder.Services.AddHttpClient<AgentClientService>(client =>
             {

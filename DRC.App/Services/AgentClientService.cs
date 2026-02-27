@@ -108,6 +108,46 @@ namespace DRC.App.Services
                 }
             }
         }
+
+        public async Task<ChatHistoryResponse?> GetChatHistoryAsync()
+        {
+            if (!IsAuthenticated) return null;
+            
+            try
+            {
+                var response = await _httpClient.GetAsync("api/Agent/ChatHistory");
+                if (!response.IsSuccessStatusCode) return null;
+                
+                var content = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<ChatHistoryResponse>(content, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<SessionDetailResponse?> GetSessionAsync(Guid sessionId)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"api/Agent/Session/{sessionId}");
+                if (!response.IsSuccessStatusCode) return null;
+                
+                var content = await response.Content.ReadAsStringAsync();
+                return JsonSerializer.Deserialize<SessionDetailResponse>(content, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     public class AgentConversationResponse
@@ -125,5 +165,43 @@ namespace DRC.App.Services
         public string ToolName { get; set; } = "";
         public string Description { get; set; } = "";
         public string Status { get; set; } = "";
+    }
+
+    public class ChatHistoryResponse
+    {
+        public int UserId { get; set; }
+        public int TotalMessages { get; set; }
+        public int TotalSessions { get; set; }
+        public List<ChatSessionSummary> Sessions { get; set; } = new();
+    }
+
+    public class ChatSessionSummary
+    {
+        public Guid SessionId { get; set; }
+        public DateTime FirstMessageAt { get; set; }
+        public DateTime LastMessageAt { get; set; }
+        public int MessageCount { get; set; }
+        public List<ChatMessageSummary> Messages { get; set; } = new();
+    }
+
+    public class ChatMessageSummary
+    {
+        public int Id { get; set; }
+        public string Role { get; set; } = "";
+        public string Content { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+        public bool HasActions { get; set; }
+    }
+
+    public class SessionDetailResponse
+    {
+        public Guid SessionId { get; set; }
+        public string? UserPhone { get; set; }
+        public string? UserName { get; set; }
+        public string? UserLocation { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime LastActivityAt { get; set; }
+        public int MessageCount { get; set; }
+        public int ActionsCount { get; set; }
     }
 }

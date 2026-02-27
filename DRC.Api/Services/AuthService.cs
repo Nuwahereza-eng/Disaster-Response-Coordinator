@@ -190,6 +190,29 @@ namespace DRC.Api.Services
             }
         }
 
+        // Temporary method to reset admin password - REMOVE IN PRODUCTION
+        public async Task<AuthResponse> ResetAdminPasswordAsync(string newPassword)
+        {
+            try
+            {
+                var admin = await _context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Admin);
+                if (admin == null)
+                {
+                    return new AuthResponse { Success = false, Message = "Admin user not found" };
+                }
+
+                admin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+                await _context.SaveChangesAsync();
+
+                return new AuthResponse { Success = true, Message = "Admin password reset successfully" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error resetting admin password");
+                return new AuthResponse { Success = false, Message = "Password reset failed" };
+            }
+        }
+
         public async Task<List<EmergencyContact>> GetEmergencyContactsAsync(int userId)
         {
             return await _context.EmergencyContacts

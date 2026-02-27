@@ -19,9 +19,14 @@ namespace DRC.Api
             var builder = WebApplication.CreateBuilder(args);
             builder.AddServiceDefaults();
 
-            // Configure SQLite Database
+            // Configure SQLite Database - use /app/data for persistence in Docker
+            var dataDir = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" 
+                && Directory.Exists("/app/data") 
+                ? "/app/data" 
+                : ".";
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-                ?? "Data Source=drc.db";
+                ?? $"Data Source={dataDir}/drc.db";
+            Console.WriteLine($"Database path: {connectionString}");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlite(connectionString));
 
@@ -123,6 +128,36 @@ namespace DRC.Api
             {
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 db.Database.EnsureCreated();
+                
+                // Ensure ChatMessages table exists (for existing databases)
+                try
+                {
+                    db.Database.ExecuteSqlRaw(@"
+                        CREATE TABLE IF NOT EXISTS ChatMessages (
+                            Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            SessionId TEXT NOT NULL,
+                            UserId INTEGER,
+                            Role TEXT NOT NULL,
+                            Content TEXT NOT NULL,
+                            UserPhone TEXT,
+                            UserLocation TEXT,
+                            Latitude REAL,
+                            Longitude REAL,
+                            ActionsJson TEXT,
+                            CreatedAt TEXT NOT NULL,
+                            FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE SET NULL
+                        )
+                    ");
+                    
+                    // Create indexes for ChatMessages
+                    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_SessionId ON ChatMessages(SessionId)");
+                    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_UserId ON ChatMessages(UserId)");
+                    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_CreatedAt ON ChatMessages(CreatedAt)");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Note: ChatMessages table setup: {ex.Message}");
+                }
             }
 
             app.MapDefaultEndpoints();

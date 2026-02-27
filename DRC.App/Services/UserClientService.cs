@@ -137,44 +137,92 @@ namespace DRC.App.Services
         {
             if (!IsAuthenticated) return null;
             
-            var profile = await _httpClient.GetFromJsonAsync<UserProfileDto>("/api/auth/profile");
-            _currentUser = profile;
-            return profile;
+            try
+            {
+                var response = await _httpClient.GetAsync("/api/auth/profile");
+                if (response.IsSuccessStatusCode)
+                {
+                    var profile = await response.Content.ReadFromJsonAsync<UserProfileDto>();
+                    _currentUser = profile;
+                    return profile;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting profile: {ex.Message}");
+            }
+            return null;
         }
 
         public async Task<bool> UpdateProfileAsync(string fullName, string phone)
         {
-            var response = await _httpClient.PutAsJsonAsync("/api/auth/profile", new { fullName, phone });
-            return response.IsSuccessStatusCode;
+            try
+            {
+                var response = await _httpClient.PutAsJsonAsync("/api/auth/profile", new { fullName, phone });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
         }
 
         public async Task<List<EmergencyContactDto>?> GetEmergencyContactsAsync()
         {
-            return await _httpClient.GetFromJsonAsync<List<EmergencyContactDto>>("/api/auth/emergency-contacts");
+            try
+            {
+                var response = await _httpClient.GetAsync("/api/auth/emergency-contacts");
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadFromJsonAsync<List<EmergencyContactDto>>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting emergency contacts: {ex.Message}");
+            }
+            return new List<EmergencyContactDto>();
         }
 
         public async Task<bool> AddEmergencyContactAsync(string name, string phone, string relationship)
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/auth/emergency-contacts", new { 
-                fullName = name, 
-                phone, 
-                relationship,
-                notifyOnEmergency = true,
-                notifyOnEvacuation = true,
-                notifyOnShelter = true
-            });
-            return response.IsSuccessStatusCode;
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("/api/auth/emergency-contacts", new { 
+                    fullName = name, 
+                    phone, 
+                    relationship,
+                    notifyOnEmergency = true,
+                    notifyOnEvacuation = true,
+                    notifyOnShelter = true
+                });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
         }
 
         public async Task<bool> DeleteEmergencyContactAsync(int id)
         {
-            var response = await _httpClient.DeleteAsync($"/api/auth/emergency-contacts/{id}");
-            return response.IsSuccessStatusCode;
+            try
+            {
+                var response = await _httpClient.DeleteAsync($"/api/auth/emergency-contacts/{id}");
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
         }
 
         public async Task<UserHistoryDto?> GetHistoryAsync()
         {
-            return await _httpClient.GetFromJsonAsync<UserHistoryDto>("/api/auth/history");
+            try
+            {
+                var response = await _httpClient.GetAsync("/api/auth/history");
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadFromJsonAsync<UserHistoryDto>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting history: {ex.Message}");
+            }
+            return null;
         }
 
         public async Task LogoutAsync()

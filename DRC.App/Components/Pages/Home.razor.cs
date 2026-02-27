@@ -41,6 +41,12 @@ namespace DRC.App.Components.Pages
         private string? userPhone = null;
         private bool locationRequested = false;
         private string? locationStatus = null;
+        
+        // Chat history sidebar
+        private bool sidebarOpen = true;
+        private bool loadingHistory = false;
+        private bool viewingHistory = false;
+        private List<ChatSessionSummary> chatSessions = new();
 
         protected override async Task OnInitializedAsync()
         {
@@ -62,6 +68,9 @@ namespace DRC.App.Components.Pages
                     userPhone = UserClient.CurrentUser?.Phone;
                     // Sync the auth token to AgentClientService so sessions are linked to the user
                     AgentClient.SetAuthToken(UserClient.AuthToken);
+                    
+                    // Load chat history
+                    await LoadChatHistoryAsync();
                 }
                 
                 // CRITICAL: Request user location immediately for emergency response
@@ -79,7 +88,38 @@ namespace DRC.App.Components.Pages
             }
         }
 
-        private void Restart()
+        private async Task LoadChatHistoryAsync()
+        {
+            if (!isAuthenticated) return;
+            
+            loadingHistory = true;
+            StateHasChanged();
+            
+            try
+            {
+                var history = await AgentClient.GetChatHistoryAsync();
+                if (history != null)
+                {
+                    chatSessions = history.Sessions;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading chat history: {ex.Message}");
+            }
+            finally
+            {
+                loadingHistory = false;
+                StateHasChanged();
+            }
+        }
+
+        private void ToggleSidebar()
+        {
+            sidebarOpen = !sidebarOpen;
+        }
+
+        private void StartNewChat()
         {
             prompt = "";
             messages = new List<MessageSave>();
@@ -88,7 +128,49 @@ namespace DRC.App.Components.Pages
             guid = null;
             isEmergency = false;
             emergencySeverity = null;
+            viewingHistory = false;
             StateHasChanged();
+        }
+
+        private async Task LoadSession(ChatSessionSummary session)
+        {
+            messages = new List<MessageSave>();
+            recentActions = new List<AgentActionDisplay>();
+            guid = session.SessionId;
+            viewingHistory = true;
+            
+            // Load messages from the session
+            foreach (var msg in session.Messages)
+            {
+                messages.Add(new MessageSave
+                {
+                    Prompt = msg.Content,
+                    Role = msg.Role == "user" ? 1 : 0
+                });
+            }
+            
+            StateHasChanged();
+            
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("ScrollToBottom", "chatcontainer");
+            }
+            catch { }
+        }
+
+        private string FormatSessionTime(DateTime time)
+        {
+            var diff = DateTime.UtcNow - time;
+            if (diff.TotalMinutes < 1) return "Just now";
+            if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+            if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+            if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+            return time.ToString("MMM d");
+        }
+
+        private void Restart()
+        {
+            StartNewChat();
         }
 
         private async Task HandleKeyPress(KeyboardEventArgs e)

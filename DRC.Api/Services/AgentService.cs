@@ -27,6 +27,8 @@ using AlertNotification = DRC.Api.Data.Entities.AlertNotification;
 using NotificationType = DRC.Api.Data.Entities.NotificationType;
 using NotificationChannel = DRC.Api.Data.Entities.NotificationChannel;
 using DbNotificationStatus = DRC.Api.Data.Entities.NotificationStatus;
+using DbChatMessage = DRC.Api.Data.Entities.ChatMessage;
+using Microsoft.EntityFrameworkCore;
 
 namespace DRC.Api.Services
 {
@@ -136,6 +138,9 @@ namespace DRC.Api.Services
 
                 // Build context from actions (includes GPS location info)
                 var actionsContext = BuildActionsContext(actionsTaken, session);
+                
+                // Build triage context to guide Gemini's response
+                var triageContext = BuildTriageContext(emergencyDetection, actionsTaken, session);
 
                 // Initialize Gemini
                 var googleAI = new GoogleAI(apiKey: apiKey);
@@ -150,11 +155,13 @@ namespace DRC.Api.Services
 
 {conversationHistory}
 
+{triageContext}
+
 {actionsContext}
 
 User: {message}
 
-INSTRUCTIONS: If emergency actions were taken above, your FIRST sentence must confirm that help has been dispatched. DO NOT ask for location if GPS coordinates are shown above. Provide immediate safety instructions relevant to the emergency type. Be brief and reassuring.
+INSTRUCTIONS: Follow the TRIAGE ASSESSMENT above. If it says NOT AN EMERGENCY, be helpful and conversational - do NOT dispatch services or be alarmist. If emergency actions were taken, confirm help is coming. DO NOT ask for location if GPS coordinates are shown.
 
 Agent:";
 
@@ -212,9 +219,15 @@ Agent:";
             // Action 1: Request emergency services if emergency detected
             if (emergencyDetection.IsEmergency && emergencyDetection.Severity >= DRC.Api.Models.EmergencySeverity.Medium)
             {
+                // Use GPS coordinates for location if available
+                string locationForEmergency = detectedLocation 
+                    ?? (session.Latitude.HasValue && session.Longitude.HasValue 
+                        ? $"GPS: {session.Latitude:F4}, {session.Longitude:F4}" 
+                        : "Unknown location");
+                
                 var action = await ExecuteRequestEmergencyServices(
                     emergencyDetection.Type.ToString().ToLower(),
-                    detectedLocation ?? "Unknown location",
+                    locationForEmergency,
                     message,
                     emergencyDetection.Severity.ToString().ToLower(),
                     session
@@ -223,10 +236,15 @@ Agent:";
             }
 
             // Action 2: Find nearby facilities if keywords present
-            var facilityKeywords = new[] { "hospital", "shelter", "police", "clinic", "help", "nearby", "closest", "find", "where" };
-            if (facilityKeywords.Any(k => messageLower.Contains(k)) && !string.IsNullOrEmpty(detectedLocation))
+            var facilityKeywords = new[] { "hospital", "shelter", "police", "clinic", "nearby", "closest", "find", "where is" };
+            bool wantsFacilities = facilityKeywords.Any(k => messageLower.Contains(k));
+            bool hasLocation = !string.IsNullOrEmpty(detectedLocation) || (session.Latitude.HasValue && session.Longitude.HasValue);
+            
+            if (wantsFacilities && hasLocation)
             {
-                var action = await ExecuteFindNearbyFacilities(detectedLocation, "all");
+                // Use GPS coordinates if available, otherwise use text location
+                string locationForSearch = detectedLocation ?? $"{session.Latitude},{session.Longitude}";
+                var action = await ExecuteFindNearbyFacilities(locationForSearch, "all", session.Latitude, session.Longitude);
                 actions.Add(action);
             }
 
@@ -325,6 +343,7 @@ Agent:";
                 sb.AppendLine("   ⚠️ DO NOT ASK FOR LOCATION - WE HAVE THEIR EXACT GPS COORDINATES!");
             }
             
+            bool emergencyDispatched = false;
             foreach (var action in actions)
             {
                 sb.AppendLine($"✅ {action.Description}");
@@ -332,8 +351,16 @@ Agent:";
                 {
                     sb.AppendLine($"   Result: {action.Result}");
                 }
+                if (action.ToolName == "request_emergency_services")
+                {
+                    emergencyDispatched = true;
+                }
             }
-            sb.AppendLine("\n🚨 EMERGENCY SERVICES HAVE BEEN DISPATCHED - TELL THE USER HELP IS COMING!");
+            
+            if (emergencyDispatched)
+            {
+                sb.AppendLine("\n🚨 EMERGENCY SERVICES HAVE BEEN DISPATCHED - TELL THE USER HELP IS COMING!");
+            }
             sb.AppendLine("[END OF ACTIONS]\n");
             return sb.ToString();
         }
@@ -458,12 +485,12 @@ Agent:";
             return action;
         }
 
-        private async Task<AgentAction> ExecuteFindNearbyFacilities(string location, string facilityType)
+        private async Task<AgentAction> ExecuteFindNearbyFacilities(string location, string facilityType, double? latitude = null, double? longitude = null)
         {
             var action = new AgentAction
             {
                 ToolName = "find_nearby_facilities",
-                Description = $"Searched for {facilityType} facilities near {location}",
+                Description = $"Searched for {facilityType} facilities near {(latitude.HasValue ? "your location" : location)}",
                 Parameters = new Dictionary<string, object>
                 {
                     ["location"] = location,
@@ -474,19 +501,42 @@ Agent:";
 
             try
             {
-                var coords = await _geocodingService.GetCoordinatesByLocationAsync(location);
-                if (!coords.HasValue)
+                double lat, lng;
+                
+                // Use provided GPS coordinates if available (more accurate)
+                if (latitude.HasValue && longitude.HasValue)
                 {
-                    action.Result = $"Could not find coordinates for {location}";
-                    action.Status = AgentActionStatus.Failed;
-                    return action;
+                    lat = latitude.Value;
+                    lng = longitude.Value;
+                    _logger.LogInformation("📍 Using GPS coordinates for facility search: ({Lat}, {Lng})", lat, lng);
+                }
+                else
+                {
+                    // Fall back to geocoding location name
+                    var coords = await _geocodingService.GetCoordinatesByLocationAsync(location);
+                    if (!coords.HasValue)
+                    {
+                        action.Result = $"Could not find coordinates for {location}";
+                        action.Status = AgentActionStatus.Failed;
+                        return action;
+                    }
+                    lat = coords.Value.Latitude;
+                    lng = coords.Value.Longitude;
                 }
 
-                var facilities = await _googlePlacesService.GetHospitalsAsync(coords.Value.Latitude, coords.Value.Longitude);
+                var facilitiesResult = await _googlePlacesService.GetHospitalsAsync(lat, lng);
                 
-                _logger.LogInformation("🏥 AGENT ACTION: Found facilities near {Location}", location);
+                _logger.LogInformation("🏥 AGENT ACTION: Found facilities near coordinates ({Lat}, {Lng})", lat, lng);
                 
-                action.Result = $"Found facilities near {location}";
+                if (!string.IsNullOrEmpty(facilitiesResult))
+                {
+                    action.Result = facilitiesResult;
+                }
+                else
+                {
+                    action.Result = "Found facilities in your area";
+                }
+                
                 action.Status = AgentActionStatus.Completed;
                 action.CompletedAt = DateTime.UtcNow;
             }
@@ -749,37 +799,93 @@ Agent:";
 
         private string GetAgentSystemPrompt()
         {
-            return @"You are Direco, an emergency response AGENT for Uganda. You TAKE ACTIONS on behalf of users, not just chat.
+            return @"You are Direco, an intelligent disaster response assistant for Uganda. You help with emergencies AND general health/safety questions.
 
-YOUR CAPABILITIES (these are automatically triggered based on user needs):
-1. Request emergency services (ambulance, police, fire brigade)
-2. Find nearby hospitals, shelters, police stations
+YOUR CAPABILITIES:
+1. Request emergency services (ambulance, police, fire brigade) - ONLY for true emergencies
+2. Find nearby hospitals, clinics, shelters, police stations
 3. Register people for emergency shelter
-4. Notify family members about emergencies
+4. Notify family members about emergencies  
 5. Request evacuation teams
-6. Provide disaster-specific safety guidance
+6. Provide health advice and safety guidance
 
-🚨🚨🚨 CRITICAL EMERGENCY PROTOCOL 🚨🚨🚨
-When the system shows '[ACTIONS I HAVE TAKEN]' with emergency services dispatched:
-- **DO NOT ASK FOR LOCATION** - We already have their GPS coordinates!
-- **CONFIRM HELP IS ON THE WAY** - Tell them emergency services have been dispatched to their exact GPS location
-- **GIVE IMMEDIATE SAFETY INSTRUCTIONS** - What to do NOW while waiting for help
-- **BE REASSURING** - They are scared, tell them help is coming
+🧠 INTELLIGENT TRIAGE - CRITICAL:
+NOT EVERY HEALTH CONCERN IS AN EMERGENCY. You must assess carefully:
 
-WRONG (don't do this): 'Please tell me your location'
-RIGHT: '🚨 HELP IS ON THE WAY! Emergency services have been dispatched to your GPS location. While you wait: [safety instructions]'
+TRUE EMERGENCIES (dispatch help immediately):
+- Unconscious, not breathing, severe bleeding, chest pain, stroke symptoms
+- Active disasters: floods, fires, landslides, building collapse
+- Violence, accidents with injuries, drowning
+- Labor/childbirth complications
 
-CRITICAL BEHAVIOR:
-- You are an AGENT that acts, not just a chatbot that talks
-- If actions were taken, acknowledge them clearly - HELP IS ALREADY DISPATCHED
-- Always provide Uganda emergency contacts: Police 999, Ambulance 911, Fire 112
-- Be concise, calm, and reassuring
-- Use emojis for clarity (🚨❗✅🏥🏠)
+HEALTH CONCERNS (provide advice, suggest clinic visit):
+- High/low blood sugar (unless unconscious or confused)
+- Fever, cough, headache, stomach issues
+- Chronic condition management
+- Medication questions
+
+WRONG: User says 'my blood sugar is high' → dispatch ambulance
+RIGHT: User says 'my blood sugar is high' → Ask about symptoms, provide management tips, suggest clinic if needed
+
+WHEN ACTIONS ARE TAKEN:
+- If '[ACTIONS I HAVE TAKEN]' shows emergency dispatch, CONFIRM help is coming to their GPS location
+- Don't ask for location if we have GPS coordinates
+- Give immediate safety instructions
+
+RESPONSE STYLE:
+- Be conversational and helpful, not alarming
+- Ask clarifying questions for non-emergencies
+- Only use 🚨 for actual emergencies
+- Provide practical advice
+- Keep responses concise
 
 UGANDA CONTEXT:
-- Know the districts and common disasters (floods, landslides in Bududa/Kasese)
-- Reference NECOC (0800-100-066), Red Cross (0800-100-250) when relevant
+- Emergency contacts: Police 999, Ambulance 911, Fire 112
+- NECOC: 0800-100-066, Red Cross: 0800-100-250
+- Common disasters: floods, landslides (Bududa/Kasese regions)
 - Rainy seasons: March-May, September-November";
+        }
+
+        private string BuildTriageContext(
+            (bool IsEmergency, DRC.Api.Models.EmergencySeverity Severity, DRC.Api.Models.EmergencyType Type) emergencyDetection,
+            List<AgentAction> actionsTaken,
+            AgentSession session)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[TRIAGE ASSESSMENT]");
+            
+            // Include GPS info - crucial for all responses
+            if (session.Latitude.HasValue && session.Longitude.HasValue)
+            {
+                sb.AppendLine($"📍 USER GPS LOCATION: Lat {session.Latitude:F6}, Lng {session.Longitude:F6}");
+                sb.AppendLine("   ✅ WE HAVE THEIR LOCATION - Use it to find nearby facilities if needed.");
+            }
+            else
+            {
+                sb.AppendLine("📍 USER LOCATION: Not available - ask only if actually needed for the request.");
+            }
+            
+            if (emergencyDetection.IsEmergency)
+            {
+                sb.AppendLine($"⚠️ EMERGENCY DETECTED: {emergencyDetection.Type}, Severity: {emergencyDetection.Severity}");
+                if (actionsTaken.Any(a => a.ToolName == "request_emergency_services"))
+                {
+                    sb.AppendLine("✅ Emergency services have been dispatched - confirm help is on the way.");
+                }
+            }
+            else
+            {
+                sb.AppendLine("✅ NOT AN EMERGENCY - This appears to be a general health concern or question.");
+                sb.AppendLine("📋 RESPONSE GUIDANCE:");
+                sb.AppendLine("   - Be helpful and conversational, NOT alarmist");
+                sb.AppendLine("   - Do NOT suggest dispatching emergency services");
+                sb.AppendLine("   - Provide practical health advice if relevant");
+                sb.AppendLine("   - If user asks for nearby facilities, use their GPS to help them");
+                sb.AppendLine("   - Suggest visiting a clinic/doctor if appropriate");
+            }
+            
+            sb.AppendLine("[END TRIAGE]");
+            return sb.ToString();
         }
 
         private string BuildConversationHistory(AgentSession session)
@@ -826,16 +932,60 @@ UGANDA CONTEXT:
                             AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
                         }
                     );
-                    return;
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Redis unavailable, using in-memory cache");
+                // Fallback to in-memory cache
+                _memoryCache[cacheKey] = (json, DateTime.UtcNow.AddHours(24));
             }
             
-            // Fallback to in-memory cache
-            _memoryCache[cacheKey] = (json, DateTime.UtcNow.AddHours(24));
+            // Also persist messages to SQLite database
+            await SaveMessagesToDatabaseAsync(session);
+        }
+
+        private async Task SaveMessagesToDatabaseAsync(AgentSession session)
+        {
+            try
+            {
+                // Get existing messages for this session
+                var existingCount = await _dbContext.ChatMessages
+                    .CountAsync(m => m.SessionId == session.SessionId);
+                
+                // Only save new messages
+                var newMessages = session.Messages.Skip(existingCount).ToList();
+                
+                foreach (var msg in newMessages)
+                {
+                    var dbMessage = new DbChatMessage
+                    {
+                        SessionId = session.SessionId,
+                        UserId = session.UserId,
+                        Role = msg.Role,
+                        Content = msg.Content,
+                        UserPhone = session.UserPhone,
+                        UserLocation = session.UserLocation,
+                        Latitude = session.Latitude,
+                        Longitude = session.Longitude,
+                        ActionsJson = msg.ActionsInMessage != null ? JsonSerializer.Serialize(msg.ActionsInMessage) : null,
+                        CreatedAt = msg.Timestamp
+                    };
+                    
+                    _dbContext.ChatMessages.Add(dbMessage);
+                }
+                
+                if (newMessages.Any())
+                {
+                    await _dbContext.SaveChangesAsync();
+                    _logger.LogInformation("Saved {Count} chat messages to database for session {SessionId}", 
+                        newMessages.Count, session.SessionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error saving chat messages to database for session {SessionId}", session.SessionId);
+            }
         }
 
         public async Task<AgentSession?> GetSessionAsync(Guid sessionId)
@@ -856,7 +1006,7 @@ UGANDA CONTEXT:
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Redis unavailable, using in-memory cache");
+                _logger.LogWarning(ex, "Redis unavailable, checking other sources");
             }
             
             // Fallback to in-memory cache
@@ -865,7 +1015,54 @@ UGANDA CONTEXT:
                 return JsonSerializer.Deserialize<AgentSession>(cached.Value);
             }
             
-            return null;
+            // Try to load from database
+            return await LoadSessionFromDatabaseAsync(sessionId);
+        }
+
+        private async Task<AgentSession?> LoadSessionFromDatabaseAsync(Guid sessionId)
+        {
+            try
+            {
+                var dbMessages = await _dbContext.ChatMessages
+                    .Where(m => m.SessionId == sessionId)
+                    .OrderBy(m => m.CreatedAt)
+                    .ToListAsync();
+                
+                if (!dbMessages.Any())
+                    return null;
+                
+                var firstMessage = dbMessages.First();
+                var session = new AgentSession
+                {
+                    SessionId = sessionId,
+                    UserId = firstMessage.UserId,
+                    UserPhone = firstMessage.UserPhone ?? "",
+                    UserLocation = firstMessage.UserLocation,
+                    Latitude = firstMessage.Latitude,
+                    Longitude = firstMessage.Longitude,
+                    CreatedAt = firstMessage.CreatedAt,
+                    LastActivityAt = dbMessages.Last().CreatedAt,
+                    Messages = dbMessages.Select(m => new AgentMessage
+                    {
+                        Role = m.Role,
+                        Content = m.Content,
+                        Timestamp = m.CreatedAt,
+                        ActionsInMessage = !string.IsNullOrEmpty(m.ActionsJson) 
+                            ? JsonSerializer.Deserialize<List<AgentAction>>(m.ActionsJson) 
+                            : null
+                    }).ToList()
+                };
+                
+                _logger.LogInformation("Loaded session {SessionId} from database with {Count} messages", 
+                    sessionId, dbMessages.Count);
+                
+                return session;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading session {SessionId} from database", sessionId);
+                return null;
+            }
         }
 
         public async Task<List<AgentAction>> GetSessionActionsAsync(Guid sessionId)
@@ -877,6 +1074,7 @@ UGANDA CONTEXT:
         public async Task<List<AgentSession>> GetUserSessionsAsync(int userId)
         {
             var sessions = new List<AgentSession>();
+            var processedSessionIds = new HashSet<Guid>();
             
             // Search in-memory cache for user sessions
             foreach (var kvp in _memoryCache)
@@ -889,13 +1087,75 @@ UGANDA CONTEXT:
                         if (session?.UserId == userId)
                         {
                             sessions.Add(session);
+                            processedSessionIds.Add(session.SessionId);
                         }
                     }
                     catch { }
                 }
             }
             
+            // Also load sessions from database
+            try
+            {
+                var dbSessionIds = await _dbContext.ChatMessages
+                    .Where(m => m.UserId == userId)
+                    .Select(m => m.SessionId)
+                    .Distinct()
+                    .ToListAsync();
+                
+                foreach (var sessionId in dbSessionIds)
+                {
+                    if (!processedSessionIds.Contains(sessionId))
+                    {
+                        var session = await LoadSessionFromDatabaseAsync(sessionId);
+                        if (session != null)
+                        {
+                            sessions.Add(session);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading user sessions from database for user {UserId}", userId);
+            }
+            
             return sessions.OrderByDescending(s => s.LastActivityAt).ToList();
+        }
+
+        public async Task<List<DRC.Api.Models.ChatHistoryItem>> GetUserChatHistoryAsync(int userId, int? limit = null)
+        {
+            try
+            {
+                var query = _dbContext.ChatMessages
+                    .Where(m => m.UserId == userId)
+                    .OrderByDescending(m => m.CreatedAt)
+                    .AsQueryable();
+                
+                if (limit.HasValue)
+                {
+                    query = query.Take(limit.Value);
+                }
+                
+                var messages = await query.ToListAsync();
+                
+                return messages.Select(m => new DRC.Api.Models.ChatHistoryItem
+                {
+                    Id = m.Id,
+                    SessionId = m.SessionId,
+                    Role = m.Role,
+                    Content = m.Content,
+                    CreatedAt = m.CreatedAt,
+                    Actions = !string.IsNullOrEmpty(m.ActionsJson) 
+                        ? JsonSerializer.Deserialize<List<AgentAction>>(m.ActionsJson) 
+                        : null
+                }).OrderBy(m => m.CreatedAt).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting chat history for user {UserId}", userId);
+                return new List<DRC.Api.Models.ChatHistoryItem>();
+            }
         }
 
         public async Task<AgentAction?> GetActionStatusAsync(string actionId)

@@ -102,4 +102,15 @@ namespace DRC.Api.Models.Auth
         public bool NotifyOnEvacuation { get; set; } = true;
         public bool NotifyOnShelter { get; set; } = true;
     }
+
+    // Temporary model for admin password reset
+    public class AdminResetRequest
+    {
+        [Required]
+        public string SecretKey { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(6)]
+        public string NewPassword { get; set; } = string.Empty;
+    }
 }

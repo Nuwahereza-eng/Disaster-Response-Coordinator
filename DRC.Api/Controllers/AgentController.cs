@@ -189,5 +189,53 @@ namespace DRC.Api.Controllers
                 action.CompletedAt
             });
         }
+
+        /// <summary>
+        /// Get the current user's complete chat history (requires authentication)
+        /// </summary>
+        [Authorize]
+        [HttpGet("ChatHistory")]
+        public async Task<IActionResult> GetChatHistory([FromQuery] int? limit = null)
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
+                           ?? User.FindFirst("sub")?.Value
+                           ?? User.FindFirst("userId")?.Value;
+            
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { Error = "User ID not found in token" });
+            }
+
+            var history = await _agentService.GetUserChatHistoryAsync(userId, limit);
+            
+            // Group by session for better organization
+            var groupedHistory = history
+                .GroupBy(m => m.SessionId)
+                .Select(g => new
+                {
+                    SessionId = g.Key,
+                    FirstMessageAt = g.Min(m => m.CreatedAt),
+                    LastMessageAt = g.Max(m => m.CreatedAt),
+                    MessageCount = g.Count(),
+                    Messages = g.OrderBy(m => m.CreatedAt).Select(m => new
+                    {
+                        m.Id,
+                        m.Role,
+                        m.Content,
+                        m.CreatedAt,
+                        HasActions = m.Actions != null && m.Actions.Any()
+                    })
+                })
+                .OrderByDescending(s => s.LastMessageAt)
+                .ToList();
+
+            return Ok(new
+            {
+                UserId = userId,
+                TotalMessages = history.Count,
+                TotalSessions = groupedHistory.Count,
+                Sessions = groupedHistory
+            });
+        }
     }
 }

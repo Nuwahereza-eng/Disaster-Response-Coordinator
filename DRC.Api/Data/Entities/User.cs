@@ -49,5 +49,6 @@ namespace DRC.Api.Data.Entities
         public ICollection<EvacuationRequest> EvacuationRequests { get; set; } = new List<EvacuationRequest>();
         public ICollection<EmergencyContact> EmergencyContacts { get; set; } = new List<EmergencyContact>();
         public ICollection<AlertNotification> AlertNotifications { get; set; } = new List<AlertNotification>();
+        public ICollection<ChatMessage> ChatMessages { get; set; } = new List<ChatMessage>();
     }
 }

@@ -10,6 +10,7 @@ namespace DRC.Api.Interfaces
         Task<UserDto?> GetUserByIdAsync(int userId);
         Task<AuthResponse> UpdateProfileAsync(int userId, UpdateProfileRequest request);
         Task<AuthResponse> ChangePasswordAsync(int userId, ChangePasswordRequest request);
+        Task<AuthResponse> ResetAdminPasswordAsync(string newPassword);
         Task<List<EmergencyContact>> GetEmergencyContactsAsync(int userId);
         Task<EmergencyContact?> AddEmergencyContactAsync(int userId, AddEmergencyContactRequest request);
         Task<bool> DeleteEmergencyContactAsync(int userId, int contactId);

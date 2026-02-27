@@ -19,6 +19,11 @@ namespace DRC.Api.Interfaces
         Task<List<AgentSession>> GetUserSessionsAsync(int userId);
 
         /// <summary>
+        /// Get user's complete chat history with all messages from all sessions
+        /// </summary>
+        Task<List<ChatHistoryItem>> GetUserChatHistoryAsync(int userId, int? limit = null);
+
+        /// <summary>
         /// Get the current session state including all actions taken
         /// </summary>
         Task<AgentSession?> GetSessionAsync(Guid sessionId);

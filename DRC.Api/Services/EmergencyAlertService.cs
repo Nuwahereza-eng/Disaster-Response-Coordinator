@@ -128,11 +128,14 @@ namespace DRC.Api.Services
             [EmergencyType.DiseaseOutbreak] = new[] { "cholera", "outbreak", "epidemic", "many sick", "disease spreading", "ebola", "plague" },
             [EmergencyType.Accident] = new[] { "accident", "crash", "collision", "vehicle accident", "car crash", "boda accident", "road accident" },
             [EmergencyType.Violence] = new[] { "attack", "fighting", "violence", "shooting", "armed", "robbery", "assault" },
-            [EmergencyType.MedicalEmergency] = new[] { "heart attack", "stroke", "bleeding", "unconscious", "not breathing", "severe pain", "giving birth", "labor" },
+            [EmergencyType.MedicalEmergency] = new[] { "heart attack", "stroke", "severe bleeding", "unconscious", "not breathing", "giving birth", "labor", "seizure", "convulsions", "choking", "poisoning", "overdose", "chest pain", "can't breathe", "allergic reaction", "anaphylaxis" },
             [EmergencyType.Drowning] = new[] { "drowning", "fell in water", "can't swim", "in the river", "in the lake" },
             [EmergencyType.BuildingCollapse] = new[] { "building collapse", "house collapsed", "roof fell", "structure collapse", "wall fell" },
             [EmergencyType.MissingPerson] = new[] { "missing", "lost child", "can't find", "disappeared", "lost person" }
         };
+
+        // Non-emergency medical keywords - require assessment, not immediate dispatch
+        private static readonly string[] _medicalConcernKeywords = { "blood sugar", "glucose", "diabetes", "blood pressure", "headache", "fever", "cough", "stomach pain", "diarrhea", "vomiting", "feeling sick", "not feeling well", "medicine", "medication", "clinic", "doctor" };
 
         // Severity keywords
         private static readonly string[] _criticalKeywords = { "dying", "dead", "death", "buried", "trapped", "can't breathe", "severe bleeding", "unconscious", "many people", "children", "emergency", "help now", "urgent", "critical", "life threatening", "sos", "999", "please help" };
@@ -153,6 +156,17 @@ namespace DRC.Api.Services
         public async Task<(bool IsEmergency, EmergencySeverity Severity, EmergencyType Type)> DetectEmergencyAsync(string message)
         {
             var lowerMessage = message.ToLower();
+            
+            // First check if this is a medical concern (not an emergency)
+            bool isMedicalConcern = _medicalConcernKeywords.Any(k => lowerMessage.Contains(k));
+            bool hasCriticalSymptoms = _criticalKeywords.Any(k => lowerMessage.Contains(k));
+            
+            // Medical concerns without critical symptoms are NOT emergencies
+            if (isMedicalConcern && !hasCriticalSymptoms)
+            {
+                _logger.LogInformation("Medical concern detected (not emergency): {Message}", message);
+                return (false, EmergencySeverity.Low, EmergencyType.Unknown);
+            }
             
             // Detect emergency type
             var detectedType = EmergencyType.Unknown;
@@ -176,7 +190,7 @@ namespace DRC.Api.Services
             // Detect severity
             var severity = EmergencySeverity.Medium;
             
-            if (_criticalKeywords.Any(k => lowerMessage.Contains(k)))
+            if (hasCriticalSymptoms)
             {
                 severity = EmergencySeverity.Critical;
             }

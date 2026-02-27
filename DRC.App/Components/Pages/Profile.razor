@@ -276,12 +276,21 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Initialize auth state from browser storage
-        await UserService.InitializeAsync();
-        
-        if (UserService.IsAuthenticated)
+        // Auth will be checked in OnAfterRenderAsync when JS is available
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
         {
-            await LoadProfile();
+            // Initialize auth state from browser storage (requires JS)
+            await UserService.InitializeAsync();
+            
+            if (UserService.IsAuthenticated)
+            {
+                await LoadProfile();
+            }
+            StateHasChanged();
         }
     }
 

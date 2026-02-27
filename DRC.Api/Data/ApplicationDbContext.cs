@@ -15,6 +15,7 @@ namespace DRC.Api.Data
         public DbSet<Facility> Facilities { get; set; }
         public DbSet<AlertNotification> AlertNotifications { get; set; }
         public DbSet<AgentSession> AgentSessions { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -68,6 +69,19 @@ namespace DRC.Api.Data
             {
                 entity.HasOne(e => e.User)
                     .WithMany(u => u.AlertNotifications)
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ChatMessage configuration
+            modelBuilder.Entity<ChatMessage>(entity =>
+            {
+                entity.HasIndex(e => e.SessionId);
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.CreatedAt);
+                
+                entity.HasOne(e => e.User)
+                    .WithMany(u => u.ChatMessages)
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.SetNull);
             });

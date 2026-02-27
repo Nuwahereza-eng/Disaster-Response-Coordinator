@@ -6,7 +6,10 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 2rem;
+    padding-bottom: 4rem;
     animation: fadeSlideIn 0.4s ease-out;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
 }
 
 @keyframes fadeSlideIn {
