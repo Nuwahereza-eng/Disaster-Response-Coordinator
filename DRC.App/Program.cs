@@ -12,7 +12,9 @@ namespace DRC.App
             builder.AddServiceDefaults();
             StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration); //Add this
 
-            var apiUrl = builder.Configuration["ApiUrl"] ?? "http://localhost:5099";
+            var apiUrl = builder.Configuration["services__api__http__0"] 
+                ?? builder.Configuration["ApiUrl"] 
+                ?? "http://localhost:8080";
 
             builder.Services.AddHttpClient<AgentClientService>(client =>
             {
@@ -64,6 +66,9 @@ namespace DRC.App
             var app = builder.Build();
 
             app.MapDefaultEndpoints();
+
+            // Health check endpoint
+            app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
             // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
