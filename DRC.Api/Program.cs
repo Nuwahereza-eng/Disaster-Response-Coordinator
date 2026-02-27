@@ -127,12 +127,9 @@ namespace DRC.Api
 
             app.MapDefaultEndpoints();
 
-            
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            }
+            // Enable Swagger in all environments for API documentation
+            app.UseSwagger();
+            app.UseSwaggerUI();
 
             app.UseHttpsRedirection();
 
@@ -141,6 +138,12 @@ namespace DRC.Api
             app.UseAuthentication();
             app.UseAuthorization();
 
+            // Root endpoint
+            app.MapGet("/", () => Results.Ok(new { 
+                name = "Disaster Response Coordinator API",
+                status = "running",
+                docs = "/swagger"
+            }));
 
             app.MapControllers();
 
