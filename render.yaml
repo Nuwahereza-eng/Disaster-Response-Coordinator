@@ -4,7 +4,7 @@ services:
     name: drc-api
     runtime: docker
     dockerfilePath: DRC.Api/Dockerfile
-    rootDir: .
+    dockerContext: .
     plan: free
     healthCheckPath: /health
     envVars:
@@ -33,7 +33,7 @@ services:
     name: drc-app
     runtime: docker
     dockerfilePath: DRC.App/Dockerfile
-    rootDir: .
+    dockerContext: .
     plan: free
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
