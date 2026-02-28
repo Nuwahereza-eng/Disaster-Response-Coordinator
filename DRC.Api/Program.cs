@@ -91,7 +91,19 @@ namespace DRC.Api
                 client.BaseAddress = new Uri("https://nominatim.openstreetmap.org/search");
             });
 
-            builder.AddRedisDistributedCache("redis");
+            // Use Redis if connection string is configured, otherwise fall back to in-memory cache
+            var redisConnectionString = builder.Configuration.GetConnectionString("redis");
+            if (!string.IsNullOrEmpty(redisConnectionString))
+            {
+                builder.AddRedisDistributedCache("redis");
+                Console.WriteLine("Using Redis distributed cache");
+            }
+            else
+            {
+                // Fallback to in-memory distributed cache for deployments without Redis
+                builder.Services.AddDistributedMemoryCache();
+                Console.WriteLine("Using in-memory cache (Redis not configured)");
+            }
 
             builder.Services.AddScoped<ICepService, CepService>();
             builder.Services.AddScoped<IChatCacheService, ChatCacheService>();
