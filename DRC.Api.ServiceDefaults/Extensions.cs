@@ -17,13 +17,8 @@ public static class Extensions
 
         builder.AddDefaultHealthChecks();
 
-        builder.Services.AddServiceDiscovery();
-
-        builder.Services.ConfigureHttpClientDefaults(http =>
-        {
-            // Service discovery only - no resilience handler to avoid timeout conflicts
-            http.AddServiceDiscovery();
-        });
+        // Note: Service discovery removed - not available on Render
+        // builder.Services.AddServiceDiscovery();
 
         return builder;
     }
