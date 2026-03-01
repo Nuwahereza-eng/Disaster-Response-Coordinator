@@ -228,9 +228,9 @@ namespace DRC.Api.Services
                 {
                     var statusEmoji = action.Status switch
                     {
-                        ActionStatus.Completed => "✅",
-                        ActionStatus.InProgress => "⏳",
-                        ActionStatus.Failed => "❌",
+                        AgentActionStatus.Completed => "✅",
+                        AgentActionStatus.InProgress => "⏳",
+                        AgentActionStatus.Failed => "❌",
                         _ => "📋"
                     };
                     sb.AppendLine($"{statusEmoji} {action.Description}");
