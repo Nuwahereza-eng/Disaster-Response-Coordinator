@@ -170,6 +170,33 @@ namespace DRC.Api
                 {
                     Console.WriteLine($"Note: ChatMessages table setup: {ex.Message}");
                 }
+
+                // Seed default admin user (recreated on each startup for ephemeral storage)
+                try
+                {
+                    var adminEmail = "admin@drc.ug";
+                    var existingAdmin = db.Users.FirstOrDefault(u => u.Email == adminEmail);
+                    if (existingAdmin == null)
+                    {
+                        var adminUser = new DRC.Api.Data.Entities.User
+                        {
+                            FullName = "DRC Administrator",
+                            Email = adminEmail,
+                            Phone = "+256700000000",
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
+                            Role = DRC.Api.Data.Entities.UserRole.Admin,
+                            IsActive = true,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        db.Users.Add(adminUser);
+                        db.SaveChanges();
+                        Console.WriteLine("✅ Default admin user created: admin@drc.ug / Admin123!");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Note: Admin user seeding: {ex.Message}");
+                }
             }
 
             app.MapDefaultEndpoints();
