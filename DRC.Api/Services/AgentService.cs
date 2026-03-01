@@ -41,7 +41,7 @@ namespace DRC.Api.Services
         private readonly IGooglePlacesService _googlePlacesService;
         private readonly IEmergencyAlertService _emergencyAlertService;
         private readonly IBenfeitoriaService _benfeitoriaService;
-        private readonly IWhatAppService _whatsAppService;
+        private readonly Lazy<IWhatAppService> _whatsAppService;
         private readonly ILogger<AgentService> _logger;
         
         // In-memory fallback when Redis is unavailable
@@ -55,7 +55,7 @@ namespace DRC.Api.Services
             IGooglePlacesService googlePlacesService,
             IEmergencyAlertService emergencyAlertService,
             IBenfeitoriaService benfeitoriaService,
-            IWhatAppService whatsAppService,
+            Lazy<IWhatAppService> whatsAppService,
             ILogger<AgentService> logger)
         {
             _configuration = configuration;
@@ -669,7 +669,7 @@ Agent:";
                 // Try to send via WhatsApp
                 try
                 {
-                    await _whatsAppService.SendMessage(contactPhone, alertMessage);
+                    await _whatsAppService.Value.SendMessage(contactPhone, alertMessage);
                     notification.Status = DbNotificationStatus.Sent;
                     notification.SentAt = DateTime.UtcNow;
                     notification.Channel = NotificationChannel.WhatsApp;

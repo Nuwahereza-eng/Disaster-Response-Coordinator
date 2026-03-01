@@ -109,8 +109,10 @@ namespace DRC.Api
             builder.Services.AddScoped<IChatCacheService, ChatCacheService>();
             builder.Services.AddScoped<IEmergencyAlertService, EmergencyAlertService>();
             builder.Services.AddScoped<IChatService, ChatService>();
-            builder.Services.AddScoped<IAgentService, AgentService>();
             builder.Services.AddScoped<IWhatAppService, WhatsAppCloudService>();
+            builder.Services.AddScoped<IAgentService, AgentService>();
+            // Register Lazy<IWhatAppService> to break circular dependency
+            builder.Services.AddScoped(sp => new Lazy<IWhatAppService>(() => sp.GetRequiredService<IWhatAppService>()));
             builder.Services.AddScoped<IAuthService, AuthService>();
 
             builder.Services.AddControllers()
