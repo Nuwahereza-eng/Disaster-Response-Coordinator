@@ -87,11 +87,22 @@ namespace DRC.Api.Services
                     };
                 }
 
-                // Get or create session
+                // Get or create session - always try to load existing session for WhatsApp continuity
                 AgentSession session;
                 if (sessionId.HasValue)
                 {
-                    session = await GetSessionAsync(sessionId.Value) ?? CreateNewSession(sessionId.Value, userPhone, userId);
+                    var existingSession = await GetSessionAsync(sessionId.Value);
+                    if (existingSession != null)
+                    {
+                        session = existingSession;
+                        _logger.LogInformation("📱 Loaded existing session {SessionId} with {MessageCount} messages for phone {Phone}", 
+                            sessionId.Value, session.Messages.Count, userPhone);
+                    }
+                    else
+                    {
+                        session = CreateNewSession(sessionId.Value, userPhone, userId);
+                        _logger.LogInformation("📱 Created new session {SessionId} for phone {Phone}", sessionId.Value, userPhone);
+                    }
                 }
                 else
                 {
