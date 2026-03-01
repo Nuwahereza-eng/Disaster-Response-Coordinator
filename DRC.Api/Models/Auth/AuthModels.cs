@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace DRC.Api.Models.Auth
 {
@@ -30,9 +31,11 @@ namespace DRC.Api.Models.Auth
     public class LoginRequest
     {
         [Required]
+        [JsonPropertyName("emailOrPhone")]
         public string EmailOrPhone { get; set; } = string.Empty;
 
         [Required]
+        [JsonPropertyName("password")]
         public string Password { get; set; } = string.Empty;
     }
 
