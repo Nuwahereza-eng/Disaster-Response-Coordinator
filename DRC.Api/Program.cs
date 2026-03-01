@@ -173,7 +173,7 @@ namespace DRC.Api
                     Console.WriteLine($"Note: ChatMessages table setup: {ex.Message}");
                 }
 
-                // Seed default admin user (recreated on each startup for ephemeral storage)
+                // Seed default admin user (only creates if doesn't exist)
                 try
                 {
                     var adminEmail = "admin@drc.ug";
@@ -198,12 +198,11 @@ namespace DRC.Api
                     }
                     else
                     {
-                        // Update password hash in case it's outdated
-                        existingAdmin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword);
+                        // Ensure admin role and active status (don't reset password)
                         existingAdmin.IsActive = true;
                         existingAdmin.Role = DRC.Api.Data.Entities.UserRole.Admin;
                         db.SaveChanges();
-                        Console.WriteLine("✅ Admin user password reset: admin@drc.ug / Admin123!");
+                        Console.WriteLine("✅ Admin user verified (password unchanged)");
                     }
                 }
                 catch (Exception ex)

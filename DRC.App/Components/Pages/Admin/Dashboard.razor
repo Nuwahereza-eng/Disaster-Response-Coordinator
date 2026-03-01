@@ -108,6 +108,10 @@
                         <span class="nav-icon"><i data-lucide="bell"></i></span>
                         <span class="nav-text">Notifications</span>
                     </button>
+                    <button class="nav-item @(activeSection == "settings" ? "active" : "")" @onclick='() => SetSection("settings")'>
+                        <span class="nav-icon"><i data-lucide="settings"></i></span>
+                        <span class="nav-text">Settings</span>
+                    </button>
                 </nav>
                 <div class="sidebar-footer">
                     <div class="user-info">
@@ -168,6 +172,9 @@
                             case "notifications":
                                 @RenderNotifications()
                                 break;
+                            case "settings":
+                                @RenderSettings()
+                                break;
                         }
                     }
                 </div>
@@ -185,6 +192,14 @@
     private string loginPassword = "";
     private string? loginError;
     private string activeSection = "dashboard";
+    
+    // Settings/Change Password
+    private string currentPassword = "";
+    private string newPassword = "";
+    private string confirmPassword = "";
+    private string? passwordMessage;
+    private bool passwordSuccess = false;
+    private bool isChangingPassword = false;
     
     private UserDto? currentUser;
     private DashboardStats? stats;
@@ -321,6 +336,7 @@
         "users" => "User Management",
         "facilities" => "Facilities",
         "notifications" => "Notification History",
+        "settings" => "Account Settings",
         _ => "Dashboard"
     };
 
@@ -805,6 +821,132 @@
             }
         </div>
     };
+
+    // Settings Section
+    private RenderFragment RenderSettings() => __builder =>
+    {
+        <div class="data-section">
+            <div class="settings-card">
+                <div class="settings-header">
+                    <h3><i data-lucide="key"></i> Change Password</h3>
+                    <p>Update your admin account password</p>
+                </div>
+                <div class="settings-form">
+                    <div class="form-group">
+                        <label>Current Password</label>
+                        <input type="password" @bind="currentPassword" placeholder="Enter current password" class="form-input" />
+                    </div>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" @bind="newPassword" placeholder="Enter new password" class="form-input" />
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" @bind="confirmPassword" placeholder="Confirm new password" class="form-input" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(passwordMessage))
+                    {
+                        <div class="@(passwordSuccess ? "success-message" : "error-message")">
+                            <i data-lucide="@(passwordSuccess ? "check-circle" : "alert-circle")"></i> @passwordMessage
+                        </div>
+                    }
+                    <button class="action-btn primary" @onclick="ChangePasswordAsync" disabled="@isChangingPassword">
+                        @if (isChangingPassword)
+                        {
+                            <span class="spinner-sm"></span>
+                            <span>Changing...</span>
+                        }
+                        else
+                        {
+                            <i data-lucide="save"></i>
+                            <span>Change Password</span>
+                        }
+                    </button>
+                </div>
+            </div>
+            
+            <div class="settings-card" style="margin-top: 1.5rem;">
+                <div class="settings-header">
+                    <h3><i data-lucide="user"></i> Account Information</h3>
+                </div>
+                <div class="settings-info">
+                    <div class="info-row">
+                        <span class="info-label">Name:</span>
+                        <span class="info-value">@currentUser?.FullName</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Email:</span>
+                        <span class="info-value">@currentUser?.Email</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Phone:</span>
+                        <span class="info-value">@currentUser?.Phone</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Role:</span>
+                        <span class="info-value badge danger">@currentUser?.Role</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    };
+
+    private async Task ChangePasswordAsync()
+    {
+        passwordMessage = null;
+        passwordSuccess = false;
+
+        if (string.IsNullOrWhiteSpace(currentPassword))
+        {
+            passwordMessage = "Please enter your current password";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            passwordMessage = "Please enter a new password";
+            return;
+        }
+
+        if (newPassword.Length < 6)
+        {
+            passwordMessage = "New password must be at least 6 characters";
+            return;
+        }
+
+        if (newPassword != confirmPassword)
+        {
+            passwordMessage = "New passwords do not match";
+            return;
+        }
+
+        isChangingPassword = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AdminService.ChangePasswordAsync(currentPassword, newPassword);
+            passwordSuccess = result.Success;
+            passwordMessage = result.Message;
+
+            if (result.Success)
+            {
+                currentPassword = "";
+                newPassword = "";
+                confirmPassword = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            passwordMessage = "Error: " + ex.Message;
+        }
+        finally
+        {
+            isChangingPassword = false;
+            StateHasChanged();
+            await JS.InvokeVoidAsync("lucide.createIcons");
+        }
+    }
 
     // Helper Methods
     private string GetTypeEmoji(string type) => type?.ToLower() switch

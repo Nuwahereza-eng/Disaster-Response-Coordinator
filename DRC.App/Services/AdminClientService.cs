@@ -214,6 +214,47 @@ namespace DRC.App.Services
                 return new List<NotificationDto>();
             }
         }
+
+        // Change Password
+        public async Task<ChangePasswordResponse> ChangePasswordAsync(string currentPassword, string newPassword)
+        {
+            try
+            {
+                var request = new { CurrentPassword = currentPassword, NewPassword = newPassword };
+                var response = await _httpClient.PostAsJsonAsync("/api/Auth/change-password", request);
+                var content = await response.Content.ReadAsStringAsync();
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    return new ChangePasswordResponse { Success = true, Message = "Password changed successfully!" };
+                }
+                
+                // Try to parse error message
+                try
+                {
+                    using var doc = JsonDocument.Parse(content);
+                    var message = doc.RootElement.TryGetProperty("message", out var msgProp) 
+                        ? msgProp.GetString() 
+                        : "Failed to change password";
+                    return new ChangePasswordResponse { Success = false, Message = message };
+                }
+                catch
+                {
+                    return new ChangePasswordResponse { Success = false, Message = "Failed to change password" };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Change password error: {ex.Message}");
+                return new ChangePasswordResponse { Success = false, Message = "Error connecting to server" };
+            }
+        }
+    }
+
+    public class ChangePasswordResponse
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
     }
 
     // DTOs for the client
