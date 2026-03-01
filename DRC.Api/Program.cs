@@ -210,6 +210,43 @@ namespace DRC.Api
                 {
                     Console.WriteLine($"Note: Admin user seeding: {ex.Message}");
                 }
+
+                // Seed judge user accounts for hackathon demo
+                try
+                {
+                    var judgeAccounts = new[]
+                    {
+                        ("judge1@aifest.ug", "Judge One", "+256701000001"),
+                        ("judge2@aifest.ug", "Judge Two", "+256701000002"),
+                        ("judge3@aifest.ug", "Judge Three", "+256701000003")
+                    };
+                    var judgePassword = "Judge2026!";
+
+                    foreach (var (email, name, phone) in judgeAccounts)
+                    {
+                        var existingJudge = db.Users.FirstOrDefault(u => u.Email == email);
+                        if (existingJudge == null)
+                        {
+                            var judgeUser = new DRC.Api.Data.Entities.User
+                            {
+                                FullName = name,
+                                Email = email,
+                                Phone = phone,
+                                PasswordHash = BCrypt.Net.BCrypt.HashPassword(judgePassword),
+                                Role = DRC.Api.Data.Entities.UserRole.User,
+                                IsActive = true,
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            db.Users.Add(judgeUser);
+                            Console.WriteLine($"✅ Judge user created: {email} / {judgePassword}");
+                        }
+                    }
+                    db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Note: Judge user seeding: {ex.Message}");
+                }
             }
 
             app.MapDefaultEndpoints();
