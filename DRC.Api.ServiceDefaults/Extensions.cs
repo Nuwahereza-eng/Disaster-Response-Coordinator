@@ -21,20 +21,7 @@ public static class Extensions
 
         builder.Services.ConfigureHttpClientDefaults(http =>
         {
-            // Turn on resilience with extended timeouts for AI responses
-            http.AddStandardResilienceHandler(options =>
-            {
-                // Increase total request timeout to 5 minutes for AI/LLM calls
-                options.TotalRequestTimeout.Timeout = TimeSpan.FromMinutes(5);
-                
-                // Increase attempt timeout to 3 minutes
-                options.AttemptTimeout.Timeout = TimeSpan.FromMinutes(3);
-                
-                // Circuit breaker settings
-                options.CircuitBreaker.SamplingDuration = TimeSpan.FromMinutes(2);
-            });
-
-            // Turn on service discovery by default
+            // Service discovery only - no resilience handler to avoid timeout conflicts
             http.AddServiceDiscovery();
         });
 
