@@ -177,7 +177,9 @@ namespace DRC.Api
                 try
                 {
                     var adminEmail = "admin@drc.ug";
+                    var adminPassword = "Admin123!";
                     var existingAdmin = db.Users.FirstOrDefault(u => u.Email == adminEmail);
+                    
                     if (existingAdmin == null)
                     {
                         var adminUser = new DRC.Api.Data.Entities.User
@@ -185,7 +187,7 @@ namespace DRC.Api
                             FullName = "DRC Administrator",
                             Email = adminEmail,
                             Phone = "+256700000000",
-                            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin123!"),
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
                             Role = DRC.Api.Data.Entities.UserRole.Admin,
                             IsActive = true,
                             CreatedAt = DateTime.UtcNow
@@ -193,6 +195,15 @@ namespace DRC.Api
                         db.Users.Add(adminUser);
                         db.SaveChanges();
                         Console.WriteLine("✅ Default admin user created: admin@drc.ug / Admin123!");
+                    }
+                    else
+                    {
+                        // Update password hash in case it's outdated
+                        existingAdmin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword);
+                        existingAdmin.IsActive = true;
+                        existingAdmin.Role = DRC.Api.Data.Entities.UserRole.Admin;
+                        db.SaveChanges();
+                        Console.WriteLine("✅ Admin user password reset: admin@drc.ug / Admin123!");
                     }
                 }
                 catch (Exception ex)
