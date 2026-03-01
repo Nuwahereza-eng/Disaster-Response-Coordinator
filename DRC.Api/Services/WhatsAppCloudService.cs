@@ -1,4 +1,5 @@
 ﻿using DRC.Api.Interfaces;
+using DRC.Api.Models;
 using System.Security.Cryptography;
 using WhatsappBusiness.CloudApi.Interfaces;
 using WhatsappBusiness.CloudApi.Messages.Requests;
@@ -11,20 +12,20 @@ namespace DRC.Api.Services
     public class WhatsAppCloudService : IWhatAppService
     {
         private readonly IWhatsAppBusinessClient _whatsAppBusinessClient;
-        private readonly IChatService _chatService;
+        private readonly IAgentService _agentService;
         private readonly ILogger<WhatsAppCloudService> _logger;
         private readonly IGeocodingService _geocodingService;
         private readonly IGooglePlacesService _placesService;
 
         public WhatsAppCloudService(
             IWhatsAppBusinessClient whatsAppBusinessClient, 
-            IChatService chatService,
+            IAgentService agentService,
             ILogger<WhatsAppCloudService> logger,
             IGeocodingService geocodingService,
             IGooglePlacesService placesService)
         {
             _whatsAppBusinessClient = whatsAppBusinessClient;
-            _chatService = chatService;
+            _agentService = agentService;
             _logger = logger;
             _geocodingService = geocodingService;
             _placesService = placesService;
@@ -53,11 +54,14 @@ namespace DRC.Api.Services
                     return true;
                 }
 
-                // Process through AI
-                var response = await _chatService.SendMessage(GuidGen, message);
+                // Process through AI Agent (with action capabilities)
+                var response = await _agentService.ProcessMessageAsync(GuidGen, message, userPhone: phone);
+                
+                // Format response with actions if any were taken
+                var formattedResponse = FormatAgentResponse(response);
                 
                 // Split long messages (WhatsApp has 4096 char limit)
-                await SendLongMessage(phone, response.message);
+                await SendLongMessage(phone, formattedResponse);
                 
                 return true;
             }
@@ -210,6 +214,34 @@ namespace DRC.Api.Services
             var results = await _whatsAppBusinessClient.SendTextMessageAsync(textMessageRequest);
             _logger.LogInformation("Sent WhatsApp message to {Phone}", phone);
             return true;
+        }
+
+        private string FormatAgentResponse(AgentResponse response)
+        {
+            var sb = new StringBuilder();
+            
+            // Add actions taken if any
+            if (response.ActionsTaken?.Any() == true)
+            {
+                sb.AppendLine("🤖 *Actions Taken:*");
+                foreach (var action in response.ActionsTaken)
+                {
+                    var statusEmoji = action.Status switch
+                    {
+                        ActionStatus.Completed => "✅",
+                        ActionStatus.InProgress => "⏳",
+                        ActionStatus.Failed => "❌",
+                        _ => "📋"
+                    };
+                    sb.AppendLine($"{statusEmoji} {action.Description}");
+                }
+                sb.AppendLine();
+            }
+            
+            // Add the main message
+            sb.Append(response.Message);
+            
+            return sb.ToString();
         }
 
         private Guid CreateGuidFromSeed(string seed)
