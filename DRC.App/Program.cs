@@ -32,14 +32,14 @@ namespace DRC.App
             builder.Services.AddHttpClient<AdminClientService>(client =>
             {
                 client.BaseAddress = new Uri(apiUrl);
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromMinutes(2); // Increased for slow Render free tier
             });
 
             // User service for profile and history - needs HttpClient and IJSRuntime
             builder.Services.AddHttpClient("UserApi", client =>
             {
                 client.BaseAddress = new Uri(apiUrl);
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromMinutes(2); // Increased for slow Render free tier
             });
             builder.Services.AddScoped<UserClientService>(sp =>
             {
