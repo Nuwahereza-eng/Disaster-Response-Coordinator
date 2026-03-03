@@ -155,7 +155,7 @@ namespace DRC.Api.Services
 
                 // Initialize Gemini
                 var googleAI = new GoogleAI(apiKey: apiKey);
-                var model = googleAI.GenerativeModel(model: "gemini-1.5-flash");
+                var model = googleAI.GenerativeModel(model: "gemini-2.5-flash");
                 model.Timeout = TimeSpan.FromMinutes(2);
 
                 // Build prompt with agent instructions and action results
@@ -178,9 +178,28 @@ Agent:";
 
                 _logger.LogInformation("Sending request to Gemini API...");
 
-                // Generate response
-                var response = await model.GenerateContent(fullPrompt);
-                var responseText = response?.Text ?? "I'm here to help. How can I assist you?";
+                // Generate response with better error handling
+                string responseText;
+                try
+                {
+                    var response = await model.GenerateContent(fullPrompt);
+                    responseText = response?.Text ?? "I'm here to help. How can I assist you?";
+                }
+                catch (HttpRequestException httpEx)
+                {
+                    _logger.LogError(httpEx, "HTTP error calling Gemini API. Status: {StatusCode}", httpEx.StatusCode);
+                    
+                    if (httpEx.Message.Contains("429") || httpEx.Message.Contains("quota", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new AgentResponse
+                        {
+                            SessionId = session.SessionId,
+                            Message = "⚠️ The AI service is temporarily unavailable due to high demand. Please try again in a few minutes.\n\n📞 For immediate help, call:\n• Police: 999\n• Ambulance: 911\n• Red Cross: 0800 100 250",
+                            ActionsTaken = actionsTaken
+                        };
+                    }
+                    throw;
+                }
 
                 _logger.LogInformation("Received response from Gemini API");
 

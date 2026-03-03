@@ -360,9 +360,23 @@ The user should be reassured that help is on the way and given immediate safety 
 
                 _logger.LogInformation("Sending request to Gemini API...");
 
-                // Generate response
-                var response = await model.GenerateContent(conversationBuilder.ToString());
-                var responseText = response?.Text ?? "Sorry, I couldn't process your message.";
+                // Generate response with better error handling
+                string responseText;
+                try
+                {
+                    var response = await model.GenerateContent(conversationBuilder.ToString());
+                    responseText = response?.Text ?? "Sorry, I couldn't process your message.";
+                }
+                catch (HttpRequestException httpEx)
+                {
+                    _logger.LogError(httpEx, "HTTP error calling Gemini API. Status: {StatusCode}", httpEx.StatusCode);
+                    
+                    if (httpEx.Message.Contains("429") || httpEx.Message.Contains("quota", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (guid?.ToString(), "⚠️ The AI service is temporarily unavailable due to high demand. Please try again in a few minutes.\n\n📞 For immediate help, call:\n• Police: 999\n• Ambulance: 911\n• Red Cross: 0800 100 250");
+                    }
+                    throw;
+                }
 
                 _logger.LogInformation("Received response from Gemini API");
 
