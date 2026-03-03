@@ -8,7 +8,15 @@
 <PageTitle>My Profile - Uganda Disaster Response</PageTitle>
 
 <div class="profile-container">
-    @if (!UserService.IsAuthenticated)
+    @if (isInitializing)
+    {
+        <!-- Loading state while checking auth -->
+        <div class="auth-loading">
+            <div class="loading-spinner"></div>
+            <p>Loading...</p>
+        </div>
+    }
+    else if (!UserService.IsAuthenticated)
     {
         <!-- Login/Register Form -->
         <div class="auth-wrapper">
@@ -252,6 +260,7 @@
 @code {
     private bool showLogin = true;
     private bool isLoading = false;
+    private bool isInitializing = true;
     private string? errorMessage;
 
     // Login fields
@@ -285,6 +294,7 @@
         {
             // Initialize auth state from browser storage (requires JS)
             await UserService.InitializeAsync();
+            isInitializing = false;
             
             if (UserService.IsAuthenticated)
             {
