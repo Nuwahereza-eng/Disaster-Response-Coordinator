@@ -19,28 +19,32 @@ namespace DRC.Api
             var builder = WebApplication.CreateBuilder(args);
             builder.AddServiceDefaults();
 
-            // Configure Database - supports both local SQLite and Turso (cloud SQLite)
-            var tursoUrl = builder.Configuration["Database:TursoUrl"] ?? Environment.GetEnvironmentVariable("TURSO_DATABASE_URL");
-            var tursoToken = builder.Configuration["Database:TursoToken"] ?? Environment.GetEnvironmentVariable("TURSO_AUTH_TOKEN");
+            // Configure Database
+            // Use PostgreSQL if DATABASE_URL is set (Render), otherwise SQLite
+            var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
             
-            string connectionString;
-            if (!string.IsNullOrEmpty(tursoUrl) && !string.IsNullOrEmpty(tursoToken))
+            if (!string.IsNullOrEmpty(databaseUrl))
             {
-                // Use Turso cloud database (libsql:// protocol)
-                connectionString = $"Data Source={tursoUrl}?authToken={tursoToken}";
-                Console.WriteLine($"Using Turso cloud database: {tursoUrl}");
+                // Parse Render's PostgreSQL URL format: postgres://user:password@host:port/database
+                var uri = new Uri(databaseUrl);
+                var userInfo = uri.UserInfo.Split(':');
+                var connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+                Console.WriteLine($"Using PostgreSQL database at: {uri.Host}");
+                
+                builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseNpgsql(connectionString));
             }
             else
             {
-                // Use local SQLite database
+                // Local development: use SQLite
                 var dataDir = Directory.Exists("/app/data") ? "/app/data" : ".";
-                connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+                var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
                     ?? $"Data Source={dataDir}/drc.db";
-                Console.WriteLine($"Using local SQLite database: {connectionString}");
+                Console.WriteLine($"Using SQLite database: {connectionString}");
+                
+                builder.Services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseSqlite(connectionString));
             }
-            
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlite(connectionString));
 
             // Configure JWT Authentication
             var jwtKey = builder.Configuration["Jwt:Key"] ?? "DisasterResponseCoordinatorSecretKey2024!@#$%";

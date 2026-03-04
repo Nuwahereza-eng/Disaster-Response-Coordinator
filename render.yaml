@@ -11,10 +11,10 @@ services:
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:8080
-      - key: TURSO_DATABASE_URL
-        sync: false  # Set this manually in Render dashboard (e.g., libsql://your-db.turso.io)
-      - key: TURSO_AUTH_TOKEN
-        sync: false  # Set this manually in Render dashboard
+      - key: DATABASE_URL
+        fromDatabase:
+          name: drc-postgres
+          property: connectionString
       - key: ConnectionStrings__redis
         fromService:
           type: redis
@@ -54,3 +54,10 @@ services:
     plan: free
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []  # Allow all IPs (empty list means all Render services can connect)
+
+# PostgreSQL Database
+databases:
+  - name: drc-postgres
+    plan: free
+    databaseName: drc_db
+    user: drc_user
