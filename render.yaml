@@ -11,6 +11,10 @@ services:
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:8080
+      - key: TURSO_DATABASE_URL
+        sync: false  # Set this manually in Render dashboard (e.g., libsql://your-db.turso.io)
+      - key: TURSO_AUTH_TOKEN
+        sync: false  # Set this manually in Render dashboard
       - key: ConnectionStrings__redis
         fromService:
           type: redis

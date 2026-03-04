@@ -19,14 +19,26 @@ namespace DRC.Api
             var builder = WebApplication.CreateBuilder(args);
             builder.AddServiceDefaults();
 
-            // Configure SQLite Database - use /app/data for persistence in Docker
-            var dataDir = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" 
-                && Directory.Exists("/app/data") 
-                ? "/app/data" 
-                : ".";
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-                ?? $"Data Source={dataDir}/drc.db";
-            Console.WriteLine($"Database path: {connectionString}");
+            // Configure Database - supports both local SQLite and Turso (cloud SQLite)
+            var tursoUrl = builder.Configuration["Database:TursoUrl"] ?? Environment.GetEnvironmentVariable("TURSO_DATABASE_URL");
+            var tursoToken = builder.Configuration["Database:TursoToken"] ?? Environment.GetEnvironmentVariable("TURSO_AUTH_TOKEN");
+            
+            string connectionString;
+            if (!string.IsNullOrEmpty(tursoUrl) && !string.IsNullOrEmpty(tursoToken))
+            {
+                // Use Turso cloud database (libsql:// protocol)
+                connectionString = $"Data Source={tursoUrl}?authToken={tursoToken}";
+                Console.WriteLine($"Using Turso cloud database: {tursoUrl}");
+            }
+            else
+            {
+                // Use local SQLite database
+                var dataDir = Directory.Exists("/app/data") ? "/app/data" : ".";
+                connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+                    ?? $"Data Source={dataDir}/drc.db";
+                Console.WriteLine($"Using local SQLite database: {connectionString}");
+            }
+            
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlite(connectionString));
 

@@ -17,7 +17,7 @@ services:
       - Apps__Meta__WhatsAppBusinessPhoneNumberId=${Apps__Meta__WhatsAppBusinessPhoneNumberId}
       - Jwt__Key=${Jwt__Key}
     volumes:
-      - drc-data:/app/data
+      - ./data:/app/data
     build:
       context: .
       dockerfile: DRC.Api/Dockerfile
@@ -48,9 +48,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-volumes:
-  drc-data:
 
 networks:
   default:
