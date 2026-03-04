@@ -86,27 +86,28 @@ namespace DRC.Api.Data
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
-            // Seed admin user
+            // Seed admin user - Pre-computed BCrypt hashes for consistent seeding
+            // Admin@123 hash
             modelBuilder.Entity<User>().HasData(new User
             {
                 Id = 1,
                 FullName = "System Administrator",
                 Email = "admin@drc.ug",
                 Phone = "+256700000000",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                PasswordHash = "$2b$12$5wyfyghjkFan1rJ/k/XSZ.KcL6gNHnyNEqIEDwZk62lUyeQVk9dge",
                 Role = UserRole.Admin,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             });
 
-            // Seed judge users
+            // Seed judge users - Judge2026! hash
             modelBuilder.Entity<User>().HasData(new User
             {
                 Id = 2,
                 FullName = "Judge 1",
                 Email = "judge1@drc.ug",
                 Phone = "+256700000001",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Judge2026!"),
+                PasswordHash = "$2b$12$14l/WRmM2vEqaFG25wWq0Ok88jUEFk68E4uHO2VdkSuubc9TAIn.6",
                 Role = UserRole.Judge,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -118,7 +119,7 @@ namespace DRC.Api.Data
                 FullName = "Judge 2",
                 Email = "judge2@drc.ug",
                 Phone = "+256700000002",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Judge2026!"),
+                PasswordHash = "$2b$12$14l/WRmM2vEqaFG25wWq0Ok88jUEFk68E4uHO2VdkSuubc9TAIn.6",
                 Role = UserRole.Judge,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -130,7 +131,7 @@ namespace DRC.Api.Data
                 FullName = "Judge 3",
                 Email = "judge3@drc.ug",
                 Phone = "+256700000003",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Judge2026!"),
+                PasswordHash = "$2b$12$14l/WRmM2vEqaFG25wWq0Ok88jUEFk68E4uHO2VdkSuubc9TAIn.6",
                 Role = UserRole.Judge,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
