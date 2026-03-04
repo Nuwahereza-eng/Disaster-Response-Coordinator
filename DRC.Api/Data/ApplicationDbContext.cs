@@ -98,6 +98,43 @@ namespace DRC.Api.Data
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             });
+
+            // Seed judge users
+            modelBuilder.Entity<User>().HasData(new User
+            {
+                Id = 2,
+                FullName = "Judge 1",
+                Email = "judge1@drc.ug",
+                Phone = "+256700000001",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Judge2026!"),
+                Role = UserRole.Judge,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
+
+            modelBuilder.Entity<User>().HasData(new User
+            {
+                Id = 3,
+                FullName = "Judge 2",
+                Email = "judge2@drc.ug",
+                Phone = "+256700000002",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Judge2026!"),
+                Role = UserRole.Judge,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
+
+            modelBuilder.Entity<User>().HasData(new User
+            {
+                Id = 4,
+                FullName = "Judge 3",
+                Email = "judge3@drc.ug",
+                Phone = "+256700000003",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Judge2026!"),
+                Role = UserRole.Judge,
+                IsActive = true,
+                CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
         }
     }
 }
