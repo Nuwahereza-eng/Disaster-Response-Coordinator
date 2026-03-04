@@ -42,6 +42,7 @@ namespace DRC.Api.Services
         private readonly IEmergencyAlertService _emergencyAlertService;
         private readonly IBenfeitoriaService _benfeitoriaService;
         private readonly Lazy<IWhatAppService> _whatsAppService;
+        private readonly IEmailService _emailService;
         private readonly ILogger<AgentService> _logger;
         
         // In-memory fallback when Redis is unavailable
@@ -56,6 +57,7 @@ namespace DRC.Api.Services
             IEmergencyAlertService emergencyAlertService,
             IBenfeitoriaService benfeitoriaService,
             Lazy<IWhatAppService> whatsAppService,
+            IEmailService emailService,
             ILogger<AgentService> logger)
         {
             _configuration = configuration;
@@ -66,6 +68,7 @@ namespace DRC.Api.Services
             _emergencyAlertService = emergencyAlertService;
             _benfeitoriaService = benfeitoriaService;
             _whatsAppService = whatsAppService;
+            _emailService = emailService;
             _logger = logger;
         }
 
@@ -766,6 +769,7 @@ Agent:";
                     var situationSummary = $"{emergencyType} emergency ({severity} severity) reported by {user.FullName}. " +
                                           $"Details: {(situationDescription.Length > 100 ? situationDescription.Substring(0, 100) + "..." : situationDescription)}";
 
+                    // Send WhatsApp/SMS notification
                     var action = await ExecuteNotifyContacts(
                         contact.Phone,
                         contact.FullName,
@@ -774,8 +778,35 @@ Agent:";
                         session
                     );
                     
-                    // Update description to show it was auto-triggered
-                    action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} at {contact.Phone}";
+                    // Also send EMAIL notification (FREE)
+                    if (!string.IsNullOrEmpty(contact.Email))
+                    {
+                        var emailSent = await _emailService.SendEmergencyAlertAsync(
+                            contact.Email,
+                            contact.FullName,
+                            user.FullName,
+                            emergencyType,
+                            severity,
+                            location,
+                            situationDescription
+                        );
+                        
+                        if (emailSent)
+                        {
+                            action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} via WhatsApp + Email";
+                            _logger.LogInformation("📧 Email alert sent to {Email}", contact.Email);
+                        }
+                        else
+                        {
+                            action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} at {contact.Phone}";
+                        }
+                    }
+                    else
+                    {
+                        // Update description to show it was auto-triggered
+                        action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} at {contact.Phone}";
+                    }
+                    
                     actions.Add(action);
                 }
 
