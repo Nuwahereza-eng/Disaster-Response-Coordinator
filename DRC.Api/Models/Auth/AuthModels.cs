@@ -97,6 +97,9 @@ namespace DRC.Api.Models.Auth
         [EmailAddress]
         public string? Email { get; set; }
 
+        [Phone]
+        public string? WhatsAppNumber { get; set; }
+
         [Required]
         public string Relationship { get; set; } = string.Empty;
 

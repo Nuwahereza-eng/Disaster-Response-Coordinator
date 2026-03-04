@@ -598,6 +598,40 @@
     font-size: 0.8rem;
 }
 
+.contact-method {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.contact-method i {
+    color: var(--primary);
+}
+
+.contact-method i.bi-whatsapp {
+    color: #25D366;
+}
+
+.contact-method i.bi-envelope {
+    color: #ea580c;
+}
+
+.contact-hint {
+    width: 100%;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.contact-hint i {
+    color: var(--primary);
+}
+
 /* Add Contact Form */
 .add-contact-form {
     display: flex;

@@ -159,7 +159,15 @@
                             <div class="contact-card">
                                 <div class="contact-info">
                                     <strong>@contact.FullName</strong>
-                                    <span>@contact.Phone</span>
+                                    <span><i class="bi bi-telephone"></i> @contact.Phone</span>
+                                    @if (!string.IsNullOrEmpty(contact.Email))
+                                    {
+                                        <span class="contact-method"><i class="bi bi-envelope"></i> @contact.Email</span>
+                                    }
+                                    @if (!string.IsNullOrEmpty(contact.WhatsAppNumber))
+                                    {
+                                        <span class="contact-method"><i class="bi bi-whatsapp"></i> @contact.WhatsAppNumber</span>
+                                    }
                                     <small>@contact.Relationship</small>
                                 </div>
                                 <button class="btn btn-sm btn-danger" @onclick="() => DeleteContact(contact.Id)"><i class="bi bi-x-lg"></i></button>
@@ -173,10 +181,12 @@
                 }
 
                 <div class="add-contact-form">
-                    <input type="text" @bind="newContactName" placeholder="Contact Name" />
-                    <input type="tel" @bind="newContactPhone" placeholder="Phone Number" />
+                    <input type="text" @bind="newContactName" placeholder="Contact Name *" />
+                    <input type="tel" @bind="newContactPhone" placeholder="Phone Number *" />
+                    <input type="email" @bind="newContactEmail" placeholder="Email (for notifications)" />
+                    <input type="tel" @bind="newContactWhatsApp" placeholder="WhatsApp Number" />
                     <select @bind="newContactRelationship">
-                        <option value="">Relationship</option>
+                        <option value="">Relationship *</option>
                         <option value="Parent">Parent</option>
                         <option value="Spouse">Spouse</option>
                         <option value="Sibling">Sibling</option>
@@ -185,6 +195,7 @@
                         <option value="Other">Other</option>
                     </select>
                     <button class="btn btn-sm btn-primary" @onclick="AddContact"><i class="bi bi-plus-lg"></i> Add</button>
+                    <p class="contact-hint"><i class="bi bi-info-circle"></i> Add email or WhatsApp to receive emergency alerts</p>
                 </div>
             </div>
 
@@ -295,6 +306,8 @@
     // New contact form
     private string newContactName = "";
     private string newContactPhone = "";
+    private string newContactEmail = "";
+    private string newContactWhatsApp = "";
     private string newContactRelationship = "";
 
     protected override async Task OnInitializedAsync()
@@ -388,9 +401,17 @@
     {
         if (!string.IsNullOrEmpty(newContactName) && !string.IsNullOrEmpty(newContactPhone) && !string.IsNullOrEmpty(newContactRelationship))
         {
-            await UserService.AddEmergencyContactAsync(newContactName, newContactPhone, newContactRelationship);
+            await UserService.AddEmergencyContactAsync(
+                newContactName, 
+                newContactPhone, 
+                newContactRelationship,
+                string.IsNullOrWhiteSpace(newContactEmail) ? null : newContactEmail,
+                string.IsNullOrWhiteSpace(newContactWhatsApp) ? null : newContactWhatsApp
+            );
             newContactName = "";
             newContactPhone = "";
+            newContactEmail = "";
+            newContactWhatsApp = "";
             newContactRelationship = "";
             emergencyContacts = await UserService.GetEmergencyContactsAsync();
         }

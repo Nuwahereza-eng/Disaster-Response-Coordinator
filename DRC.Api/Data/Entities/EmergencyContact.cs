@@ -39,6 +39,10 @@ namespace DRC.Api.Data.Entities
         [MaxLength(255)]
         public string? Email { get; set; }
 
+        [Phone]
+        [MaxLength(20)]
+        public string? WhatsAppNumber { get; set; }
+
         [Required]
         public ContactRelationship Relationship { get; set; }
 

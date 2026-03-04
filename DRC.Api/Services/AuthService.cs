@@ -237,6 +237,7 @@ namespace DRC.Api.Services
                     FullName = request.FullName,
                     Phone = request.Phone,
                     Email = request.Email,
+                    WhatsAppNumber = request.WhatsAppNumber,
                     Relationship = relationship,
                     IsPrimary = request.IsPrimary,
                     NotifyOnEmergency = request.NotifyOnEmergency,

@@ -181,13 +181,15 @@ namespace DRC.App.Services
             return new List<EmergencyContactDto>();
         }
 
-        public async Task<bool> AddEmergencyContactAsync(string name, string phone, string relationship)
+        public async Task<bool> AddEmergencyContactAsync(string name, string phone, string relationship, string? email = null, string? whatsAppNumber = null)
         {
             try
             {
                 var response = await _httpClient.PostAsJsonAsync("/api/auth/emergency-contacts", new { 
                     fullName = name, 
-                    phone, 
+                    phone,
+                    email,
+                    whatsAppNumber,
                     relationship,
                     notifyOnEmergency = true,
                     notifyOnEvacuation = true,
@@ -264,6 +266,8 @@ namespace DRC.App.Services
         public int Id { get; set; }
         public string FullName { get; set; } = "";
         public string Phone { get; set; } = "";
+        public string? Email { get; set; }
+        public string? WhatsAppNumber { get; set; }
         public string Relationship { get; set; } = "";
     }
 
