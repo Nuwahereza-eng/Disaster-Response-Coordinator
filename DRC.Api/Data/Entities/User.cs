@@ -6,7 +6,8 @@ namespace DRC.Api.Data.Entities
     {
         User = 0,
         Responder = 1,
-        Admin = 2
+        Admin = 2,
+        Judge = 3
     }
 
     public class User

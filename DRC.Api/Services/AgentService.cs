@@ -263,6 +263,20 @@ Agent:";
                     session
                 );
                 actions.Add(action);
+
+                // AUTO-NOTIFY: Alert user's registered emergency contacts
+                if (session.UserId.HasValue)
+                {
+                    var contactNotifications = await NotifyUserEmergencyContacts(
+                        session.UserId.Value,
+                        emergencyDetection.Type.ToString(),
+                        emergencyDetection.Severity.ToString(),
+                        locationForEmergency,
+                        message,
+                        session
+                    );
+                    actions.AddRange(contactNotifications);
+                }
             }
 
             // Action 2: Find nearby facilities if keywords present
@@ -716,6 +730,63 @@ Agent:";
             }
 
             return action;
+        }
+
+        /// <summary>
+        /// Automatically notifies all emergency contacts registered with a user when an emergency is detected
+        /// </summary>
+        private async Task<List<AgentAction>> NotifyUserEmergencyContacts(
+            int userId, 
+            string emergencyType, 
+            string severity, 
+            string location, 
+            string situationDescription,
+            AgentSession session)
+        {
+            var actions = new List<AgentAction>();
+
+            try
+            {
+                // Get the user and their emergency contacts
+                var user = await _dbContext.Users
+                    .Include(u => u.EmergencyContacts)
+                    .FirstOrDefaultAsync(u => u.Id == userId);
+
+                if (user == null || user.EmergencyContacts == null || !user.EmergencyContacts.Any())
+                {
+                    _logger.LogInformation("No emergency contacts found for user {UserId}", userId);
+                    return actions;
+                }
+
+                _logger.LogInformation("🚨 AUTO-NOTIFY: Alerting {Count} emergency contacts for user {UserName}", 
+                    user.EmergencyContacts.Count, user.FullName);
+
+                foreach (var contact in user.EmergencyContacts)
+                {
+                    var situationSummary = $"{emergencyType} emergency ({severity} severity) reported by {user.FullName}. " +
+                                          $"Details: {(situationDescription.Length > 100 ? situationDescription.Substring(0, 100) + "..." : situationDescription)}";
+
+                    var action = await ExecuteNotifyContacts(
+                        contact.Phone,
+                        contact.FullName,
+                        situationSummary,
+                        location,
+                        session
+                    );
+                    
+                    // Update description to show it was auto-triggered
+                    action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} at {contact.Phone}";
+                    actions.Add(action);
+                }
+
+                _logger.LogInformation("✅ AUTO-NOTIFY: Successfully sent alerts to {Count} emergency contacts", actions.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to auto-notify emergency contacts for user {UserId}", userId);
+            }
+
+            return actions;
         }
 
         private async Task<AgentAction> ExecuteRequestEvacuation(
