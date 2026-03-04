@@ -86,7 +86,7 @@ namespace DRC.Api.Data
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
-            // Seed admin user - Pre-computed BCrypt hashes for consistent seeding
+            // Seed admin user - Pre-computed BCrypt hashes ($2a$ prefix for .NET compatibility)
             // Admin@123 hash
             modelBuilder.Entity<User>().HasData(new User
             {
@@ -94,7 +94,7 @@ namespace DRC.Api.Data
                 FullName = "System Administrator",
                 Email = "admin@drc.ug",
                 Phone = "+256700000000",
-                PasswordHash = "$2b$12$5wyfyghjkFan1rJ/k/XSZ.KcL6gNHnyNEqIEDwZk62lUyeQVk9dge",
+                PasswordHash = "$2a$12$TX3BcGB/eoHs9Fap1dJqvOUPuPGo/5IFNgXoacGRDTiE4m9oj1FcW",
                 Role = UserRole.Admin,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -107,7 +107,7 @@ namespace DRC.Api.Data
                 FullName = "Judge 1",
                 Email = "judge1@drc.ug",
                 Phone = "+256700000001",
-                PasswordHash = "$2b$12$14l/WRmM2vEqaFG25wWq0Ok88jUEFk68E4uHO2VdkSuubc9TAIn.6",
+                PasswordHash = "$2a$12$3RdlzAYaRoTEpN76mdOjuelz60t24yk7zh65k/kttKHgviyQbVg8W",
                 Role = UserRole.Judge,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -119,7 +119,7 @@ namespace DRC.Api.Data
                 FullName = "Judge 2",
                 Email = "judge2@drc.ug",
                 Phone = "+256700000002",
-                PasswordHash = "$2b$12$14l/WRmM2vEqaFG25wWq0Ok88jUEFk68E4uHO2VdkSuubc9TAIn.6",
+                PasswordHash = "$2a$12$3RdlzAYaRoTEpN76mdOjuelz60t24yk7zh65k/kttKHgviyQbVg8W",
                 Role = UserRole.Judge,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
@@ -131,7 +131,7 @@ namespace DRC.Api.Data
                 FullName = "Judge 3",
                 Email = "judge3@drc.ug",
                 Phone = "+256700000003",
-                PasswordHash = "$2b$12$14l/WRmM2vEqaFG25wWq0Ok88jUEFk68E4uHO2VdkSuubc9TAIn.6",
+                PasswordHash = "$2a$12$3RdlzAYaRoTEpN76mdOjuelz60t24yk7zh65k/kttKHgviyQbVg8W",
                 Role = UserRole.Judge,
                 IsActive = true,
                 CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc)
