@@ -54,7 +54,12 @@
                     </div>
                     <div class="form-group">
                         <label><i class="bi bi-lock-fill"></i> Password</label>
-                        <input type="password" @bind="loginPassword" placeholder="Password" class="form-control" />
+                        <div class="password-input-wrapper">
+                            <input type="@(showLoginPassword ? "text" : "password")" @bind="loginPassword" placeholder="Password" class="form-control" />
+                            <button type="button" class="password-toggle" @onclick="() => showLoginPassword = !showLoginPassword" tabindex="-1">
+                                <i class="bi @(showLoginPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn btn-primary" @onclick="LoginAsync" disabled="@isLoading">
                         @if (isLoading) { <span class="spinner-sm"></span> } Login & Start Chatting
@@ -78,7 +83,12 @@
                     </div>
                     <div class="form-group">
                         <label><i class="bi bi-lock-fill"></i> Password</label>
-                        <input type="password" @bind="registerPassword" placeholder="Min 6 characters" class="form-control" />
+                        <div class="password-input-wrapper">
+                            <input type="@(showRegisterPassword ? "text" : "password")" @bind="registerPassword" placeholder="Min 6 characters" class="form-control" />
+                            <button type="button" class="password-toggle" @onclick="() => showRegisterPassword = !showRegisterPassword" tabindex="-1">
+                                <i class="bi @(showRegisterPassword ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </div>
                     </div>
                     <button class="btn btn-primary" @onclick="RegisterAsync" disabled="@isLoading">
                         @if (isLoading) { <span class="spinner-sm"></span> } Create Account & Start Chatting
@@ -262,6 +272,10 @@
     private bool isLoading = false;
     private bool isInitializing = true;
     private string? errorMessage;
+
+    // Password visibility toggles
+    private bool showLoginPassword = false;
+    private bool showRegisterPassword = false;
 
     // Login fields
     private string loginEmail = "";

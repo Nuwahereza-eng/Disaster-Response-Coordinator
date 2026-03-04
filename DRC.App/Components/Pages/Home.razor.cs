@@ -47,6 +47,9 @@ namespace DRC.App.Components.Pages
         private bool loadingHistory = false;
         private bool viewingHistory = false;
         private List<ChatSessionSummary> chatSessions = new();
+        
+        // Enter key handling
+        private bool shouldPreventDefault = false;
 
         protected override async Task OnInitializedAsync()
         {
@@ -175,9 +178,17 @@ namespace DRC.App.Components.Pages
 
         private async Task HandleKeyPress(KeyboardEventArgs e)
         {
-            if (e.Key == "Enter" && !e.ShiftKey && !string.IsNullOrWhiteSpace(prompt))
+            if (e.Key == "Enter" && !e.ShiftKey)
             {
-                await CallAgent();
+                shouldPreventDefault = true;
+                if (!string.IsNullOrWhiteSpace(prompt))
+                {
+                    await CallAgent();
+                }
+            }
+            else
+            {
+                shouldPreventDefault = false;
             }
         }
 
