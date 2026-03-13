@@ -1,5 +1,6 @@
 
 using DRC.Api.Data;
+using DRC.Api.Data.Entities;
 using DRC.Api.Interfaces;
 using DRC.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -196,7 +197,7 @@ namespace DRC.Api
                 try
                 {
                     db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN WhatsAppNumber TEXT");
-                    Console.WriteLine("✅ Added WhatsAppNumber column to EmergencyContacts");
+                    Console.WriteLine("[OK] Added WhatsAppNumber column to EmergencyContacts");
                 }
                 catch (Exception)
                 {
@@ -207,7 +208,7 @@ namespace DRC.Api
                 try
                 {
                     db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN Email TEXT");
-                    Console.WriteLine("✅ Added Email column to EmergencyContacts");
+                    Console.WriteLine("[OK] Added Email column to EmergencyContacts");
                 }
                 catch (Exception)
                 {
@@ -235,7 +236,7 @@ namespace DRC.Api
                         };
                         db.Users.Add(adminUser);
                         db.SaveChanges();
-                        Console.WriteLine("✅ Default admin user created: admin@drc.ug / Admin123!");
+                        Console.WriteLine("[OK] Default admin user created: admin@drc.ug / Admin123!");
                     }
                     else
                     {
@@ -243,7 +244,7 @@ namespace DRC.Api
                         existingAdmin.IsActive = true;
                         existingAdmin.Role = DRC.Api.Data.Entities.UserRole.Admin;
                         db.SaveChanges();
-                        Console.WriteLine("✅ Admin user verified (password unchanged)");
+                        Console.WriteLine("[OK] Admin user verified (password unchanged)");
                     }
                 }
                 catch (Exception ex)
@@ -278,7 +279,7 @@ namespace DRC.Api
                                 CreatedAt = DateTime.UtcNow
                             };
                             db.Users.Add(judgeUser);
-                            Console.WriteLine($"✅ Judge user created: {email} / {judgePassword}");
+                            Console.WriteLine($"[OK] Judge user created: {email} / {judgePassword}");
                         }
                     }
                     db.SaveChanges();
@@ -509,7 +510,7 @@ namespace DRC.Api
                         
                         db.Facilities.AddRange(facilities);
                         db.SaveChanges();
-                        Console.WriteLine($"✅ Seeded {facilities.Count} facilities for Uganda");
+                        Console.WriteLine($"[OK] Seeded {facilities.Count} facilities for Uganda");
                     }
                 }
                 catch (Exception ex)
