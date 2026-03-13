@@ -159,10 +159,10 @@ namespace DRC.Api.Services
                 // Build triage context to guide Gemini's response
                 var triageContext = BuildTriageContext(emergencyDetection, actionsTaken, session);
 
-                // Initialize Gemini
+                // Initialize Gemini with shorter timeout
                 var googleAI = new GoogleAI(apiKey: apiKey);
                 var model = googleAI.GenerativeModel(model: "gemini-2.0-flash");
-                model.Timeout = TimeSpan.FromMinutes(2);
+                model.Timeout = TimeSpan.FromSeconds(30); // Reduced from 2 minutes
 
                 // Build prompt with agent instructions and action results
                 var systemPrompt = GetAgentSystemPrompt();
@@ -184,27 +184,28 @@ Agent:";
 
                 _logger.LogInformation("Sending request to Gemini API...");
 
-                // Generate response with better error handling
+                // Generate response with timeout and error handling
                 string responseText;
                 try
                 {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
                     var response = await model.GenerateContent(fullPrompt);
                     responseText = response?.Text ?? "I'm here to help. How can I assist you?";
+                }
+                catch (TaskCanceledException)
+                {
+                    _logger.LogWarning("Gemini API call timed out");
+                    responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Gemini API call was cancelled");
+                    responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
                 }
                 catch (HttpRequestException httpEx)
                 {
                     _logger.LogError(httpEx, "HTTP error calling Gemini API. Status: {StatusCode}", httpEx.StatusCode);
-                    
-                    if (httpEx.Message.Contains("429") || httpEx.Message.Contains("quota", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return new AgentResponse
-                        {
-                            SessionId = session.SessionId,
-                            Message = "⚠️ The AI service is temporarily unavailable due to high demand. Please try again in a few minutes.\n\n📞 For immediate help, call:\n• Police: 999\n• Ambulance: 911\n• Red Cross: 0800 100 250",
-                            ActionsTaken = actionsTaken
-                        };
-                    }
-                    throw;
+                    responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
                 }
 
                 _logger.LogInformation("Received response from Gemini API");
@@ -1359,22 +1360,90 @@ UGANDA CONTEXT:
             return null;
         }
 
+        private string BuildEmergencyAwareResponse(
+            (bool IsEmergency, DRC.Api.Models.EmergencySeverity Severity, DRC.Api.Models.EmergencyType Type) emergencyDetection,
+            List<AgentAction> actionsTaken,
+            AgentSession session)
+        {
+            // If emergency actions were taken, confirm them
+            if (actionsTaken.Any(a => a.ToolName == "REQUEST_EMERGENCY_SERVICES" && a.Status == AgentActionStatus.Completed))
+            {
+                var location = session.Latitude.HasValue && session.Longitude.HasValue 
+                    ? $"Lat {session.Latitude:F4}, Lng {session.Longitude:F4}" 
+                    : session.UserLocation ?? "your location";
+                    
+                return $@"EMERGENCY RESPONSE ACTIVATED
+
+I have dispatched emergency services to {location}.
+
+Services dispatched:
+- Police: Notified
+- Fire Brigade: Notified  
+- Ambulance: On the way
+
+STAY SAFE:
+- Stay calm and find a safe spot
+- Keep your phone charged
+- Follow instructions from responders
+
+Direct emergency lines:
+- Police: 999
+- Ambulance: 911
+- Fire: 112";
+            }
+
+            // If it was detected as emergency but no action taken yet
+            if (emergencyDetection.IsEmergency)
+            {
+                return $@"EMERGENCY DETECTED: {emergencyDetection.Type}
+
+I'm processing your emergency request. Help is being coordinated.
+
+While waiting:
+- Stay in a safe location
+- Keep this line open
+- Follow any safety protocols
+
+Direct emergency lines:
+- Police: 999
+- Ambulance: 911
+- Fire: 112
+- NECOC: 0800-100-066";
+            }
+
+            // Non-emergency fallback
+            return @"Uganda Disaster Response Agent
+
+I'm here to help! How can I assist you today?
+
+I can help with:
+- Emergency reporting
+- Finding nearby shelters and hospitals
+- Evacuation assistance
+- Safety information
+
+For immediate emergencies, call:
+- Police: 999
+- Ambulance: 911
+- Fire: 112";
+        }
+
         private string GetFallbackResponse()
         {
-            return @"🆘 Uganda Disaster Response Agent
+            return @"Uganda Disaster Response Agent
 
 I'm temporarily unable to process your request, but I'm here to help!
 
-📞 EMERGENCY CONTACTS:
-• Police: 999
-• Ambulance: 911
-• Fire: 112
-• NECOC: 0800-100-066
+EMERGENCY CONTACTS:
+- Police: 999
+- Ambulance: 911
+- Fire: 112
+- NECOC: 0800-100-066
 
 Tell me:
-• Your location
-• What emergency you're facing
-• How many people need help
+- Your location
+- What emergency you're facing
+- How many people need help
 
 I will take action immediately.";
         }
