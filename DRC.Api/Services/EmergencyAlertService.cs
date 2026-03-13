@@ -130,7 +130,7 @@ namespace DRC.Api.Services
             [EmergencyType.Violence] = new[] { "attack", "fighting", "violence", "shooting", "armed", "robbery", "assault" },
             [EmergencyType.MedicalEmergency] = new[] { "heart attack", "stroke", "severe bleeding", "unconscious", "not breathing", "giving birth", "labor", "seizure", "convulsions", "choking", "poisoning", "overdose", "chest pain", "can't breathe", "allergic reaction", "anaphylaxis" },
             [EmergencyType.Drowning] = new[] { "drowning", "fell in water", "can't swim", "in the river", "in the lake" },
-            [EmergencyType.BuildingCollapse] = new[] { "building collapse", "house collapsed", "roof fell", "structure collapse", "wall fell" },
+            [EmergencyType.BuildingCollapse] = new[] { "building collapse", "house collapsed", "roof fell", "structure collapse", "wall fell", "trapped inside", "trapped in building", "trapped in the building", "building hit", "missile", "explosion", "bombed" },
             [EmergencyType.MissingPerson] = new[] { "missing", "lost child", "can't find", "disappeared", "lost person" }
         };
 
