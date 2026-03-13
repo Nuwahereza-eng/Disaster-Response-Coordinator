@@ -16,6 +16,12 @@ services:
       - Apps__Meta__WhatsAppBusinessId=${Apps__Meta__WhatsAppBusinessId}
       - Apps__Meta__WhatsAppBusinessPhoneNumberId=${Apps__Meta__WhatsAppBusinessPhoneNumberId}
       - Jwt__Key=${Jwt__Key}
+      # Email configuration (FREE - use Gmail, Outlook, or any SMTP provider)
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST:-smtp.gmail.com}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - EMAIL_FROM=${EMAIL_FROM:-alerts@drc.ug}
     volumes:
       - ./data:/app/data
     build:

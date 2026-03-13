@@ -127,6 +127,7 @@ namespace DRC.Api
             builder.Services.AddScoped<IChatService, ChatService>();
             builder.Services.AddScoped<IWhatAppService, WhatsAppCloudService>();
             builder.Services.AddScoped<IEmailService, EmailService>();
+            builder.Services.AddScoped<IFacilityAssignmentService, FacilityAssignmentService>();
             builder.Services.AddScoped<IAgentService, AgentService>();
             // Register Lazy<IWhatAppService> to break circular dependency
             builder.Services.AddScoped(sp => new Lazy<IWhatAppService>(() => sp.GetRequiredService<IWhatAppService>()));
@@ -189,6 +190,28 @@ namespace DRC.Api
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Note: ChatMessages table setup: {ex.Message}");
+                }
+
+                // Add WhatsAppNumber column to EmergencyContacts if it doesn't exist
+                try
+                {
+                    db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN WhatsAppNumber TEXT");
+                    Console.WriteLine("✅ Added WhatsAppNumber column to EmergencyContacts");
+                }
+                catch (Exception)
+                {
+                    // Column already exists, ignore
+                }
+
+                // Add Email column to EmergencyContacts if it doesn't exist
+                try
+                {
+                    db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN Email TEXT");
+                    Console.WriteLine("✅ Added Email column to EmergencyContacts");
+                }
+                catch (Exception)
+                {
+                    // Column already exists, ignore
                 }
 
                 // Seed default admin user (only creates if doesn't exist)

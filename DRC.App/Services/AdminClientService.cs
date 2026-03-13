@@ -181,6 +181,70 @@ namespace DRC.App.Services
             catch { return false; }
         }
 
+        public async Task<bool> UpdateEvacuationStatusAsync(int id, string status)
+        {
+            try
+            {
+                var response = await _httpClient.PutAsJsonAsync($"/api/admin/evacuation-requests/{id}/status", 
+                    new { status = status });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
+        // Facility Assignment
+        public async Task<bool> AssignFacilityToEmergencyAsync(int requestId, int facilityId)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    $"/api/admin/emergency-requests/{requestId}/assign-facility", 
+                    new { facilityId });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
+        public async Task<bool> AssignFacilityToShelterAsync(int registrationId, int facilityId)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    $"/api/admin/shelter-registrations/{registrationId}/assign-facility", 
+                    new { facilityId });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
+        public async Task<bool> AssignFacilityToEvacuationAsync(int requestId, int facilityId)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(
+                    $"/api/admin/evacuation-requests/{requestId}/assign-facility", 
+                    new { facilityId });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
+        public async Task<List<FacilityDto>?> GetSuitableFacilitiesAsync(string requestType)
+        {
+            try
+            {
+                var json = await _httpClient.GetStringAsync($"/api/admin/facilities/suitable?requestType={requestType}");
+                using var doc = JsonDocument.Parse(json);
+                var facilitiesArray = doc.RootElement.GetProperty("facilities");
+                return JsonSerializer.Deserialize<List<FacilityDto>>(facilitiesArray.GetRawText(), _jsonOptions) ?? new List<FacilityDto>();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Get suitable facilities error: {ex.Message}");
+                return new List<FacilityDto>();
+            }
+        }
+
         // Facilities
         public async Task<List<FacilityDto>?> GetFacilitiesAsync()
         {
@@ -195,6 +259,48 @@ namespace DRC.App.Services
             {
                 Console.WriteLine($"Facilities error: {ex.Message}");
                 return new List<FacilityDto>();
+            }
+        }
+
+        public async Task<bool> CreateFacilityAsync(object facilityData)
+        {
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync("/api/admin/facilities", facilityData);
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Create facility error: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateFacilityAsync(int id, object facilityData)
+        {
+            try
+            {
+                var response = await _httpClient.PutAsJsonAsync($"/api/admin/facilities/{id}", facilityData);
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Update facility error: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteFacilityAsync(int id)
+        {
+            try
+            {
+                var response = await _httpClient.DeleteAsync($"/api/admin/facilities/{id}");
+                return response.IsSuccessStatusCode;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Delete facility error: {ex.Message}");
+                return false;
             }
         }
 
@@ -304,6 +410,9 @@ namespace DRC.App.Services
         public bool FireBrigadeDispatched { get; set; }
         public bool PoliceDispatched { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int? AssignedFacilityId { get; set; }
+        public string? AssignedFacilityName { get; set; }
+        public string? AssignedFacilityType { get; set; }
     }
 
     public class ShelterRegistrationDto
@@ -319,6 +428,10 @@ namespace DRC.App.Services
         public string Status { get; set; } = "";
         public string? ShelterName { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int? AssignedFacilityId { get; set; }
+        public string? AssignedFacilityName { get; set; }
+        public int? AssignedFacilityCapacity { get; set; }
+        public int? AssignedFacilityOccupancy { get; set; }
     }
 
     public class EvacuationRequestDto
@@ -336,6 +449,9 @@ namespace DRC.App.Services
         public string? AssignedVehicle { get; set; }
         public string? DriverName { get; set; }
         public DateTime CreatedAt { get; set; }
+        public int? AssignedFacilityId { get; set; }
+        public string? AssignedFacilityName { get; set; }
+        public string? AssignedFacilityAddress { get; set; }
     }
 
     public class FacilityDto
@@ -345,9 +461,17 @@ namespace DRC.App.Services
         public string Type { get; set; } = "";
         public string? Address { get; set; }
         public string? Phone { get; set; }
+        public string? Description { get; set; }
+        public string? ServicesOffered { get; set; }
+        public string? OperatingHours { get; set; }
+        public bool Is24Hours { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
         public int? Capacity { get; set; }
         public int? CurrentOccupancy { get; set; }
         public bool IsOperational { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime? LastUpdatedAt { get; set; }
     }
 
     public class NotificationDto

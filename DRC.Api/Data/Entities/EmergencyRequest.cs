@@ -81,5 +81,11 @@ namespace DRC.Api.Data.Entities
         public bool AmbulanceDispatched { get; set; }
         public bool FireBrigadeDispatched { get; set; }
         public bool PoliceDispatched { get; set; }
+
+        // Assigned facility
+        public int? AssignedFacilityId { get; set; }
+
+        [ForeignKey("AssignedFacilityId")]
+        public Facility? AssignedFacility { get; set; }
     }
 }

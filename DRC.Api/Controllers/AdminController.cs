@@ -1,5 +1,6 @@
 using DRC.Api.Data;
 using DRC.Api.Data.Entities;
+using DRC.Api.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,11 +13,13 @@ namespace DRC.Api.Controllers
     public class AdminController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IFacilityAssignmentService _facilityAssignmentService;
         private readonly ILogger<AdminController> _logger;
 
-        public AdminController(ApplicationDbContext context, ILogger<AdminController> logger)
+        public AdminController(ApplicationDbContext context, IFacilityAssignmentService facilityAssignmentService, ILogger<AdminController> logger)
         {
             _context = context;
+            _facilityAssignmentService = facilityAssignmentService;
             _logger = logger;
         }
 
@@ -169,7 +172,10 @@ namespace DRC.Api.Controllers
             [FromQuery] string? severity = null,
             [FromQuery] string? type = null)
         {
-            var query = _context.EmergencyRequests.Include(r => r.User).AsQueryable();
+            var query = _context.EmergencyRequests
+                .Include(r => r.User)
+                .Include(r => r.AssignedFacility)
+                .AsQueryable();
 
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<RequestStatus>(status, true, out var requestStatus))
             {
@@ -213,7 +219,10 @@ namespace DRC.Api.Controllers
                     r.PoliceDispatched,
                     r.CreatedAt,
                     r.AcknowledgedAt,
-                    r.ResolvedAt
+                    r.ResolvedAt,
+                    r.AssignedFacilityId,
+                    AssignedFacilityName = r.AssignedFacility != null ? r.AssignedFacility.Name : null,
+                    AssignedFacilityType = r.AssignedFacility != null ? r.AssignedFacility.Type.ToString() : null
                 })
                 .ToListAsync();
 
@@ -253,7 +262,10 @@ namespace DRC.Api.Controllers
             [FromQuery] int pageSize = 20,
             [FromQuery] string? status = null)
         {
-            var query = _context.ShelterRegistrations.Include(r => r.User).AsQueryable();
+            var query = _context.ShelterRegistrations
+                .Include(r => r.User)
+                .Include(r => r.AssignedFacility)
+                .AsQueryable();
 
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<RegistrationStatus>(status, true, out var regStatus))
             {
@@ -284,7 +296,11 @@ namespace DRC.Api.Controllers
                     r.CreatedAt,
                     r.CheckInAt,
                     r.CheckOutAt,
-                    r.Notes
+                    r.Notes,
+                    r.AssignedFacilityId,
+                    AssignedFacilityName = r.AssignedFacility != null ? r.AssignedFacility.Name : null,
+                    AssignedFacilityCapacity = r.AssignedFacility != null ? r.AssignedFacility.Capacity : null,
+                    AssignedFacilityOccupancy = r.AssignedFacility != null ? r.AssignedFacility.CurrentOccupancy : null
                 })
                 .ToListAsync();
 
@@ -326,7 +342,10 @@ namespace DRC.Api.Controllers
             [FromQuery] string? status = null,
             [FromQuery] string? priority = null)
         {
-            var query = _context.EvacuationRequests.Include(r => r.User).AsQueryable();
+            var query = _context.EvacuationRequests
+                .Include(r => r.User)
+                .Include(r => r.AssignedFacility)
+                .AsQueryable();
 
             if (!string.IsNullOrEmpty(status) && Enum.TryParse<EvacuationStatus>(status, true, out var evacStatus))
             {
@@ -370,7 +389,10 @@ namespace DRC.Api.Controllers
                     r.ActualArrival,
                     r.CreatedAt,
                     r.CompletedAt,
-                    r.Notes
+                    r.Notes,
+                    r.AssignedFacilityId,
+                    AssignedFacilityName = r.AssignedFacility != null ? r.AssignedFacility.Name : null,
+                    AssignedFacilityAddress = r.AssignedFacility != null ? r.AssignedFacility.Address : null
                 })
                 .ToListAsync();
 
@@ -417,8 +439,26 @@ namespace DRC.Api.Controllers
                 query = query.Where(f => f.Type == facilityType);
             }
 
-            var facilities = await query.OrderBy(f => f.Name).ToListAsync();
-            return Ok(facilities);
+            var facilities = await query.OrderBy(f => f.Name).Select(f => new {
+                f.Id,
+                f.Name,
+                Type = f.Type.ToString(),
+                f.Address,
+                f.Phone,
+                f.Description,
+                f.ServicesOffered,
+                f.OperatingHours,
+                f.Is24Hours,
+                f.Latitude,
+                f.Longitude,
+                f.Capacity,
+                f.CurrentOccupancy,
+                f.IsOperational,
+                f.CreatedAt,
+                f.LastUpdatedAt
+            }).ToListAsync();
+            
+            return Ok(new { facilities, total = facilities.Count });
         }
 
         [HttpPost("facilities")]
@@ -523,6 +563,102 @@ namespace DRC.Api.Controllers
 
             return Ok(new { total, page, pageSize, notifications });
         }
+
+        // ========== FACILITY ASSIGNMENT ==========
+
+        [HttpPost("emergency-requests/{id}/assign-facility")]
+        public async Task<IActionResult> AssignFacilityToEmergency(int id, [FromBody] AssignFacilityRequest request)
+        {
+            var success = await _facilityAssignmentService.AssignFacilityToEmergencyAsync(id, request.FacilityId);
+            if (!success)
+            {
+                return NotFound("Emergency request or facility not found");
+            }
+
+            var emergencyRequest = await _context.EmergencyRequests
+                .Include(e => e.AssignedFacility)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            _logger.LogInformation("Admin assigned facility {FacilityId} to emergency request {RequestId}", 
+                request.FacilityId, id);
+
+            return Ok(new { 
+                message = "Facility assigned successfully",
+                emergencyRequestId = id,
+                facilityId = request.FacilityId,
+                facilityName = emergencyRequest?.AssignedFacility?.Name
+            });
+        }
+
+        [HttpPost("shelter-registrations/{id}/assign-facility")]
+        public async Task<IActionResult> AssignFacilityToShelter(int id, [FromBody] AssignFacilityRequest request)
+        {
+            var success = await _facilityAssignmentService.AssignFacilityToShelterAsync(id, request.FacilityId);
+            if (!success)
+            {
+                return NotFound("Shelter registration or facility not found");
+            }
+
+            var registration = await _context.ShelterRegistrations
+                .Include(s => s.AssignedFacility)
+                .FirstOrDefaultAsync(s => s.Id == id);
+
+            _logger.LogInformation("Admin assigned facility {FacilityId} to shelter registration {RegistrationId}", 
+                request.FacilityId, id);
+
+            return Ok(new { 
+                message = "Facility assigned successfully",
+                shelterRegistrationId = id,
+                facilityId = request.FacilityId,
+                facilityName = registration?.AssignedFacility?.Name
+            });
+        }
+
+        [HttpPost("evacuation-requests/{id}/assign-facility")]
+        public async Task<IActionResult> AssignFacilityToEvacuation(int id, [FromBody] AssignFacilityRequest request)
+        {
+            var success = await _facilityAssignmentService.AssignFacilityToEvacuationAsync(id, request.FacilityId);
+            if (!success)
+            {
+                return NotFound("Evacuation request or facility not found");
+            }
+
+            var evacRequest = await _context.EvacuationRequests
+                .Include(e => e.AssignedFacility)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            _logger.LogInformation("Admin assigned facility {FacilityId} to evacuation request {RequestId}", 
+                request.FacilityId, id);
+
+            return Ok(new { 
+                message = "Facility assigned successfully",
+                evacuationRequestId = id,
+                facilityId = request.FacilityId,
+                facilityName = evacRequest?.AssignedFacility?.Name
+            });
+        }
+
+        [HttpGet("facilities/suitable")]
+        public async Task<IActionResult> GetSuitableFacilities([FromQuery] string requestType, [FromQuery] double? latitude = null, [FromQuery] double? longitude = null)
+        {
+            var facilities = await _facilityAssignmentService.GetSuitableFacilitiesAsync(requestType, latitude, longitude);
+            
+            return Ok(new { 
+                facilities = facilities.Select(f => new {
+                    f.Id,
+                    f.Name,
+                    Type = f.Type.ToString(),
+                    f.Address,
+                    f.Phone,
+                    f.Latitude,
+                    f.Longitude,
+                    f.Capacity,
+                    f.CurrentOccupancy,
+                    AvailableCapacity = f.Capacity.HasValue ? f.Capacity - (f.CurrentOccupancy ?? 0) : null,
+                    f.IsOperational
+                })
+            });
+        }
     }
 
     // Request DTOs for Admin endpoints
@@ -588,5 +724,10 @@ namespace DRC.Api.Controllers
         public int? Capacity { get; set; }
         public int? CurrentOccupancy { get; set; }
         public bool? IsOperational { get; set; }
+    }
+
+    public class AssignFacilityRequest
+    {
+        public int FacilityId { get; set; }
     }
 }

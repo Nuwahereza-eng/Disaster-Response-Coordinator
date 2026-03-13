@@ -88,5 +88,11 @@ namespace DRC.Api.Data.Entities
 
         [MaxLength(500)]
         public string? Notes { get; set; }
+
+        // Assigned facility (evacuation destination)
+        public int? AssignedFacilityId { get; set; }
+
+        [ForeignKey("AssignedFacilityId")]
+        public Facility? AssignedFacility { get; set; }
     }
 }

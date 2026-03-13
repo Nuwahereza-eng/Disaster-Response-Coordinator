@@ -181,6 +181,55 @@
             </main>
         </div>
     }
+    
+    @* Facility Assignment Modal *@
+    @if (showAssignFacilityModal)
+    {
+        <div class="modal-overlay" @onclick="CloseAssignFacilityModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>Assign Facility</h3>
+                    <button class="close-btn" @onclick="CloseAssignFacilityModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <p class="modal-subtitle">Select a facility to assign to this @assigningRequestType request:</p>
+                    @if (suitableFacilities?.Any() == true)
+                    {
+                        <div class="facility-list">
+                            @foreach (var f in suitableFacilities)
+                            {
+                                <div class="facility-option" @onclick="() => AssignFacility(f.Id)">
+                                    <div class="facility-info">
+                                        <span class="facility-icon">@GetFacilityEmoji(f.Type)</span>
+                                        <div class="facility-details">
+                                            <strong>@f.Name</strong>
+                                            <span class="facility-type">@f.Type</span>
+                                            <span class="facility-address">@f.Address</span>
+                                        </div>
+                                    </div>
+                                    @if (f.Capacity.HasValue)
+                                    {
+                                        <div class="facility-capacity">
+                                            <span class="capacity-text">@(f.CurrentOccupancy ?? 0)/@f.Capacity</span>
+                                            <div class="capacity-bar">
+                                                <div class="capacity-fill" style="width: @GetCapacityPercent(f.CurrentOccupancy, f.Capacity)%"></div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <p>No suitable facilities available.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -496,6 +545,7 @@
                                 <th>Description</th>
                                 <th>Contact</th>
                                 <th>Services</th>
+                                <th>Assigned Facility</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
@@ -517,6 +567,20 @@
                                         @if (e.PoliceDispatched) { <span class="service-icon" title="Police">🚔</span> }
                                     </td>
                                     <td>
+                                        @if (!string.IsNullOrEmpty(e.AssignedFacilityName))
+                                        {
+                                            <span class="facility-badge" title="@e.AssignedFacilityType">
+                                                @GetFacilityEmoji(e.AssignedFacilityType) @e.AssignedFacilityName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn-assign" @onclick="@(() => ShowAssignFacilityModalForEmergency(e.Id, e.Type))">
+                                                ➕ Assign
+                                            </button>
+                                        }
+                                    </td>
+                                    <td>
                                         <select class="status-select" value="@e.Status" 
                                                 @onchange="evt => UpdateEmergencyStatus(e.Id, evt.Value?.ToString())">
                                             <option value="Pending">Pending</option>
@@ -529,6 +593,10 @@
                                     <td>@e.CreatedAt.ToString("MMM dd, HH:mm")</td>
                                     <td>
                                         <button class="action-btn success" @onclick="() => ResolveEmergency(e.Id)" title="Mark Resolved"><i data-lucide="check"></i></button>
+                                        @if (!string.IsNullOrEmpty(e.AssignedFacilityName))
+                                        {
+                                            <button class="action-btn warning" @onclick="@(() => ShowAssignFacilityModalForEmergency(e.Id, e.Type))" title="Reassign Facility"><i data-lucide="refresh-cw"></i></button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -563,7 +631,7 @@
                                 <th>Family Size</th>
                                 <th>Composition</th>
                                 <th>Special Needs</th>
-                                <th>Shelter</th>
+                                <th>Assigned Shelter</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
@@ -583,11 +651,28 @@
                                         </span>
                                     </td>
                                     <td>@(string.IsNullOrEmpty(s.SpecialNeeds) ? "None" : TruncateText(s.SpecialNeeds, 20))</td>
-                                    <td>@(s.ShelterName ?? "Unassigned")</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(s.AssignedFacilityName))
+                                        {
+                                            <span class="facility-badge" title="Capacity: @(s.AssignedFacilityOccupancy ?? 0)/@(s.AssignedFacilityCapacity ?? 0)">
+                                                🏠 @s.AssignedFacilityName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn-assign" @onclick="@(() => ShowAssignFacilityModalForShelter(s.Id))">
+                                                ➕ Assign
+                                            </button>
+                                        }
+                                    </td>
                                     <td><span class="badge @GetStatusClass(s.Status)">@s.Status</span></td>
                                     <td>@s.CreatedAt.ToString("MMM dd, HH:mm")</td>
                                     <td>
                                         <button class="action-btn primary" @onclick="() => CheckInShelter(s.Id)" title="Check In"><i data-lucide="clipboard-check"></i></button>
+                                        @if (!string.IsNullOrEmpty(s.AssignedFacilityName))
+                                        {
+                                            <button class="action-btn warning" @onclick="@(() => ShowAssignFacilityModalForShelter(s.Id))" title="Reassign Shelter"><i data-lucide="refresh-cw"></i></button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -621,6 +706,7 @@
                                 <th>Phone</th>
                                 <th>People</th>
                                 <th>Pickup Location</th>
+                                <th>Destination</th>
                                 <th>Priority</th>
                                 <th>Vehicle</th>
                                 <th>Driver</th>
@@ -647,6 +733,20 @@
                                         }
                                     </td>
                                     <td>@TruncateText(e.PickupLocation, 25)</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(e.AssignedFacilityName))
+                                        {
+                                            <span class="facility-badge" title="@e.AssignedFacilityAddress">
+                                                📍 @e.AssignedFacilityName
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn-assign" @onclick="@(() => ShowAssignFacilityModalForEvacuation(e.Id))">
+                                                ➕ Assign
+                                            </button>
+                                        }
+                                    </td>
                                     <td><span class="badge @GetPriorityClass(e.Priority)">@e.Priority</span></td>
                                     <td>
                                         <input type="text" class="inline-input" value="@e.AssignedVehicle" 
@@ -661,6 +761,10 @@
                                     <td><span class="badge @GetStatusClass(e.Status)">@e.Status</span></td>
                                     <td>
                                         <button class="action-btn success" @onclick="() => CompleteEvacuation(e.Id)" title="Complete"><i data-lucide="check" style="width:14px;height:14px;"></i></button>
+                                        @if (!string.IsNullOrEmpty(e.AssignedFacilityName))
+                                        {
+                                            <button class="action-btn warning" @onclick="@(() => ShowAssignFacilityModalForEvacuation(e.Id))" title="Reassign Destination"><i data-lucide="refresh-cw"></i></button>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -733,6 +837,12 @@
     private RenderFragment RenderFacilities() => __builder =>
     {
         <div class="data-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <h2>Facilities</h2>
+                    <span class="count-badge">@(facilities?.Count ?? 0) Total</span>
+                </div>
+            </div>
             @if (facilities?.Any() == true)
             {
                 <div class="cards-grid">
@@ -752,6 +862,15 @@
                             <div class="facility-details">
                                 <p><i data-lucide="map-pin"></i> @(f.Address ?? "No address")</p>
                                 <p><i data-lucide="phone"></i> @(f.Phone ?? "No phone")</p>
+                                @if (!string.IsNullOrEmpty(f.ServicesOffered))
+                                {
+                                    <div class="services-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                        @foreach (var service in f.ServicesOffered.Split(',', StringSplitOptions.RemoveEmptyEntries).Take(4))
+                                        {
+                                            <span class="service-tag" style="padding: 4px 8px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 6px; color: #c4b5fd; font-size: 11px;">@service.Trim()</span>
+                                        }
+                                    </div>
+                                }
                                 @if (f.Capacity.HasValue)
                                 {
                                     <div class="capacity-bar">
@@ -1010,11 +1129,16 @@
 
     private string GetFacilityIcon(string type) => type?.ToLower() switch
     {
-        "hospital" => "Hospital",
-        "shelter" => "Shelter",
-        "firestation" => "Fire Station",
-        "policestation" => "Police Station",
-        _ => "Building"
+        "hospital" => "🏥",
+        "clinic" => "🩺",
+        "pharmacy" => "💊",
+        "policestation" => "👮",
+        "firestation" => "🚒",
+        "shelter" => "🏠",
+        "evacuationpoint" => "📍",
+        "fooddistribution" => "🍲",
+        "waterpoint" => "💧",
+        _ => "🏢"
     };
 
     private string GetNotificationTypeIcon(string type) => type?.ToLower() switch
@@ -1045,6 +1169,86 @@
     {
         if (!max.HasValue || max.Value == 0) return 0;
         return Math.Min(100, (int)((current ?? 0) * 100.0 / max.Value));
+    }
+
+    private string GetFacilityEmoji(string? type) => type?.ToLower() switch
+    {
+        "hospital" => "🏥",
+        "clinic" => "🩺",
+        "pharmacy" => "💊",
+        "policestation" => "👮",
+        "firestation" => "🚒",
+        "shelter" => "🏠",
+        "evacuationpoint" => "📍",
+        "fooddistribution" => "🍲",
+        "waterpoint" => "💧",
+        _ => "🏢"
+    };
+
+    // Facility Assignment Modal State
+    private bool showAssignFacilityModal = false;
+    private int assigningRequestId = 0;
+    private string assigningRequestType = "";
+    private string assigningEmergencyType = "";
+    private List<FacilityDto>? suitableFacilities;
+
+    private Task ShowAssignFacilityModalForEmergency(int requestId, string emergencyType)
+        => ShowAssignFacilityModal(requestId, "emergency", emergencyType);
+
+    private Task ShowAssignFacilityModalForShelter(int requestId)
+        => ShowAssignFacilityModal(requestId, "shelter", "Shelter");
+
+    private Task ShowAssignFacilityModalForEvacuation(int requestId)
+        => ShowAssignFacilityModal(requestId, "evacuation", "Evacuation");
+
+    private async Task ShowAssignFacilityModal(int requestId, string requestType, string emergencyType)
+    {
+        assigningRequestId = requestId;
+        assigningRequestType = requestType;
+        assigningEmergencyType = emergencyType;
+        
+        // Get suitable facilities for this request type
+        var facilityType = requestType switch
+        {
+            "emergency" => emergencyType.ToLower() switch
+            {
+                "fire" => "fire",
+                "medical" => "medical",
+                "violence" => "crime",
+                _ => "emergency"
+            },
+            "shelter" => "shelter",
+            "evacuation" => "evacuation",
+            _ => "emergency"
+        };
+        
+        suitableFacilities = await AdminService.GetSuitableFacilitiesAsync(facilityType);
+        showAssignFacilityModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseAssignFacilityModal()
+    {
+        showAssignFacilityModal = false;
+        suitableFacilities = null;
+        StateHasChanged();
+    }
+
+    private async Task AssignFacility(int facilityId)
+    {
+        bool success = assigningRequestType switch
+        {
+            "emergency" => await AdminService.AssignFacilityToEmergencyAsync(assigningRequestId, facilityId),
+            "shelter" => await AdminService.AssignFacilityToShelterAsync(assigningRequestId, facilityId),
+            "evacuation" => await AdminService.AssignFacilityToEvacuationAsync(assigningRequestId, facilityId),
+            _ => false
+        };
+
+        if (success)
+        {
+            CloseAssignFacilityModal();
+            await RefreshData();
+        }
     }
 
     // Action Methods

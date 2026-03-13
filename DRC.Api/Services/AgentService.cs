@@ -43,6 +43,7 @@ namespace DRC.Api.Services
         private readonly IBenfeitoriaService _benfeitoriaService;
         private readonly Lazy<IWhatAppService> _whatsAppService;
         private readonly IEmailService _emailService;
+        private readonly IFacilityAssignmentService _facilityAssignmentService;
         private readonly ILogger<AgentService> _logger;
         
         // In-memory fallback when Redis is unavailable
@@ -58,6 +59,7 @@ namespace DRC.Api.Services
             IBenfeitoriaService benfeitoriaService,
             Lazy<IWhatAppService> whatsAppService,
             IEmailService emailService,
+            IFacilityAssignmentService facilityAssignmentService,
             ILogger<AgentService> logger)
         {
             _configuration = configuration;
@@ -69,6 +71,7 @@ namespace DRC.Api.Services
             _benfeitoriaService = benfeitoriaService;
             _whatsAppService = whatsAppService;
             _emailService = emailService;
+            _facilityAssignmentService = facilityAssignmentService;
             _logger = logger;
         }
 
@@ -238,6 +241,30 @@ Agent:";
                     ActionsTaken = actionsTaken
                 };
             }
+        }
+
+        /// <summary>
+        /// Format phone number for WhatsApp API (requires international format without +)
+        /// </summary>
+        private string FormatPhoneForWhatsApp(string phone)
+        {
+            if (string.IsNullOrEmpty(phone)) return phone;
+            
+            // Remove spaces, dashes, parentheses
+            var cleaned = phone.Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "").Replace("+", "");
+            
+            // Uganda local format: starts with 07 -> add 256
+            if (cleaned.StartsWith("07") && cleaned.Length == 10)
+            {
+                cleaned = "256" + cleaned.Substring(1); // 0779081600 -> 256779081600
+            }
+            // If starts with 0 and has country code already, remove leading 0
+            else if (cleaned.StartsWith("0") && cleaned.Length > 10)
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            return cleaned;
         }
 
         private async Task<List<AgentAction>> DetermineAndExecuteActions(
@@ -475,6 +502,9 @@ Agent:";
                 }
                 session.UserLocation = location;
 
+                // Auto-assign nearest facility
+                var nearestFacility = await _facilityAssignmentService.FindNearestFacilityForEmergencyAsync(typeEnum, latitude, longitude);
+
                 // Save to database
                 var emergencyRequest = new EmergencyRequest
                 {
@@ -490,7 +520,8 @@ Agent:";
                     CreatedAt = DateTime.UtcNow,
                     AmbulanceDispatched = typeEnum == EmergencyType.Medical || severityEnum >= EmergencySeverity.High,
                     FireBrigadeDispatched = typeEnum == EmergencyType.Fire,
-                    PoliceDispatched = typeEnum == EmergencyType.Violence || severityEnum >= EmergencySeverity.Critical
+                    PoliceDispatched = typeEnum == EmergencyType.Violence || severityEnum >= EmergencySeverity.Critical,
+                    AssignedFacilityId = nearestFacility?.Id
                 };
 
                 _dbContext.EmergencyRequests.Add(emergencyRequest);
@@ -503,7 +534,8 @@ Agent:";
                     Type = NotificationType.Emergency,
                     Channel = NotificationChannel.SMS,
                     Subject = $"Emergency Alert - {typeEnum}",
-                    Message = $"Emergency services dispatched to {location}. Alert ID: {emergencyRequest.Id}",
+                    Message = $"Emergency services dispatched to {location}. Alert ID: {emergencyRequest.Id}" +
+                        (nearestFacility != null ? $". Assigned to: {nearestFacility.Name}" : ""),
                     Status = DbNotificationStatus.Sent,
                     RelatedEmergencyRequestId = emergencyRequest.Id,
                     CreatedAt = DateTime.UtcNow,
@@ -512,13 +544,14 @@ Agent:";
                 _dbContext.AlertNotifications.Add(notification);
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogWarning("🚨 AGENT ACTION: Emergency services requested - DB ID: {Id}, Type: {Type}, Location: {Location}",
-                    emergencyRequest.Id, typeEnum, location);
+                _logger.LogWarning("🚨 AGENT ACTION: Emergency services requested - DB ID: {Id}, Type: {Type}, Location: {Location}, Facility: {Facility}",
+                    emergencyRequest.Id, typeEnum, location, nearestFacility?.Name ?? "None assigned");
 
                 action.Result = $"Emergency Request #{emergencyRequest.Id} created - Services dispatched: " +
                     $"{(emergencyRequest.AmbulanceDispatched ? "Ambulance " : "")}" +
                     $"{(emergencyRequest.FireBrigadeDispatched ? "Fire Brigade " : "")}" +
-                    $"{(emergencyRequest.PoliceDispatched ? "Police" : "")}";
+                    $"{(emergencyRequest.PoliceDispatched ? "Police" : "")}" +
+                    (nearestFacility != null ? $" | Assigned to: {nearestFacility.Name}" : "");
                 action.Status = AgentActionStatus.Completed;
                 action.CompletedAt = DateTime.UtcNow;
             }
@@ -615,6 +648,14 @@ Agent:";
 
             try
             {
+                // Geocode the location for facility assignment
+                var coords = await _geocodingService.GetCoordinatesByLocationAsync(location);
+                double? lat = coords?.Latitude;
+                double? lng = coords?.Longitude;
+
+                // Auto-assign nearest shelter with capacity
+                var nearestShelter = await _facilityAssignmentService.FindNearestShelterAsync(lat, lng, numberOfPeople);
+
                 // Save to database
                 var registration = new ShelterRegistration
                 {
@@ -627,7 +668,10 @@ Agent:";
                     Elderly = 0,
                     SpecialNeeds = string.Join(", ", specialNeeds),
                     Status = DbRegistrationStatus.Pending,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AssignedFacilityId = nearestShelter?.Id,
+                    ShelterName = nearestShelter?.Name,
+                    ShelterAddress = nearestShelter?.Address
                 };
 
                 _dbContext.ShelterRegistrations.Add(registration);
@@ -640,7 +684,8 @@ Agent:";
                     Type = NotificationType.Shelter,
                     Channel = NotificationChannel.SMS,
                     Subject = "Shelter Registration Confirmed",
-                    Message = $"Your shelter registration #{registration.Id} for {numberOfPeople} person(s) has been received. A coordinator will contact you shortly.",
+                    Message = $"Your shelter registration #{registration.Id} for {numberOfPeople} person(s) has been received." +
+                        (nearestShelter != null ? $" Assigned shelter: {nearestShelter.Name} ({nearestShelter.Address})" : " A coordinator will contact you shortly."),
                     Status = DbNotificationStatus.Sent,
                     RelatedShelterRegistrationId = registration.Id,
                     CreatedAt = DateTime.UtcNow,
@@ -649,10 +694,12 @@ Agent:";
                 _dbContext.AlertNotifications.Add(notification);
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogInformation("🏠 AGENT ACTION: Shelter registration created - DB ID: {Id}, People: {Count}, Location: {Location}",
-                    registration.Id, numberOfPeople, location);
+                _logger.LogInformation("🏠 AGENT ACTION: Shelter registration created - DB ID: {Id}, People: {Count}, Location: {Location}, Shelter: {Shelter}",
+                    registration.Id, numberOfPeople, location, nearestShelter?.Name ?? "None assigned");
 
-                action.Result = $"Registration #{registration.Id} confirmed - Shelter coordinator will contact you at {session.UserPhone ?? "your number"}";
+                action.Result = nearestShelter != null
+                    ? $"Registration #{registration.Id} confirmed - Assigned to: {nearestShelter.Name} ({nearestShelter.Address})"
+                    : $"Registration #{registration.Id} confirmed - Shelter coordinator will contact you at {session.UserPhone ?? "your number"}";
                 action.Status = AgentActionStatus.Completed;
                 action.CompletedAt = DateTime.UtcNow;
             }
@@ -702,19 +749,25 @@ Agent:";
                 _dbContext.AlertNotifications.Add(notification);
                 await _dbContext.SaveChangesAsync();
 
+                // Format phone number for WhatsApp (needs international format)
+                var whatsAppPhone = FormatPhoneForWhatsApp(contactPhone);
+
                 // Try to send via WhatsApp
                 try
                 {
-                    await _whatsAppService.Value.SendMessage(contactPhone, alertMessage);
+                    await _whatsAppService.Value.SendMessage(whatsAppPhone, alertMessage);
                     notification.Status = DbNotificationStatus.Sent;
                     notification.SentAt = DateTime.UtcNow;
                     notification.Channel = NotificationChannel.WhatsApp;
+                    _logger.LogInformation("📱 WhatsApp message sent to {Phone} (formatted: {FormattedPhone})", contactPhone, whatsAppPhone);
                 }
-                catch
+                catch (Exception whatsAppEx)
                 {
-                    // Fallback - mark as sent (simulated)
-                    notification.Status = DbNotificationStatus.Sent;
-                    notification.SentAt = DateTime.UtcNow;
+                    // WhatsApp failed - log the reason
+                    _logger.LogWarning("📱 WhatsApp failed for {Phone}: {Error}. Note: Recipient must have messaged your business first.", 
+                        whatsAppPhone, whatsAppEx.Message);
+                    notification.Status = DbNotificationStatus.Failed;
+                    notification.ErrorMessage = $"WhatsApp: {whatsAppEx.Message}";
                 }
                 
                 await _dbContext.SaveChangesAsync();
@@ -849,6 +902,9 @@ Agent:";
                 if (dangerType.ToLower().Contains("fire") || dangerType.ToLower().Contains("collapse")) 
                     priority = EvacuationPriority.Critical;
 
+                // Auto-assign nearest evacuation point
+                var nearestEvacPoint = await _facilityAssignmentService.FindNearestEvacuationPointAsync(lat, lng);
+
                 // Save to database
                 var evacRequest = new EvacuationRequest
                 {
@@ -863,10 +919,14 @@ Agent:";
                     PickupLocation = currentLocation,
                     PickupLatitude = lat,
                     PickupLongitude = lng,
+                    DestinationLocation = nearestEvacPoint?.Address ?? nearestEvacPoint?.Name,
+                    DestinationLatitude = nearestEvacPoint?.Latitude,
+                    DestinationLongitude = nearestEvacPoint?.Longitude,
                     Status = EvacuationStatus.Requested,
                     Priority = priority,
                     EstimatedArrival = DateTime.UtcNow.AddMinutes(priority == EvacuationPriority.Critical ? 15 : 30),
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    AssignedFacilityId = nearestEvacPoint?.Id
                 };
 
                 _dbContext.EvacuationRequests.Add(evacRequest);
@@ -880,7 +940,8 @@ Agent:";
                     Channel = NotificationChannel.SMS,
                     Subject = "Evacuation Request Confirmed",
                     Message = $"Evacuation request #{evacRequest.Id} received. {numberOfPeople} people at {currentLocation}. " +
-                              $"Priority: {priority}. ETA: {evacRequest.EstimatedArrival?.ToString("HH:mm")}",
+                              $"Priority: {priority}. ETA: {evacRequest.EstimatedArrival?.ToString("HH:mm")}" +
+                              (nearestEvacPoint != null ? $". Destination: {nearestEvacPoint.Name}" : ""),
                     Status = DbNotificationStatus.Sent,
                     RelatedEvacuationRequestId = evacRequest.Id,
                     CreatedAt = DateTime.UtcNow,
@@ -889,10 +950,12 @@ Agent:";
                 _dbContext.AlertNotifications.Add(notification);
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogWarning("🚁 AGENT ACTION: Evacuation requested - DB ID: {Id}, People: {Count}, Location: {Location}, Priority: {Priority}",
-                    evacRequest.Id, numberOfPeople, currentLocation, priority);
+                _logger.LogWarning("🚁 AGENT ACTION: Evacuation requested - DB ID: {Id}, People: {Count}, Location: {Location}, Priority: {Priority}, Destination: {Dest}",
+                    evacRequest.Id, numberOfPeople, currentLocation, priority, nearestEvacPoint?.Name ?? "Not assigned");
 
-                action.Result = $"Evacuation Request #{evacRequest.Id} - Priority: {priority}, ETA: {evacRequest.EstimatedArrival?.ToString("HH:mm")} - Stay calm, help is on the way!";
+                action.Result = $"Evacuation Request #{evacRequest.Id} - Priority: {priority}, ETA: {evacRequest.EstimatedArrival?.ToString("HH:mm")}" +
+                    (nearestEvacPoint != null ? $", Destination: {nearestEvacPoint.Name}" : "") +
+                    " - Stay calm, help is on the way!";
                 action.Status = AgentActionStatus.Completed;
                 action.CompletedAt = DateTime.UtcNow;
             }
