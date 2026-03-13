@@ -287,6 +287,235 @@ namespace DRC.Api
                 {
                     Console.WriteLine($"Note: Judge user seeding: {ex.Message}");
                 }
+
+                // Seed default facilities for Uganda
+                try
+                {
+                    if (!db.Facilities.Any())
+                    {
+                        var facilities = new List<Facility>
+                        {
+                            // Hospitals
+                            new Facility
+                            {
+                                Name = "Mulago National Referral Hospital",
+                                Type = FacilityType.Hospital,
+                                Address = "Mulago Hill, Kampala",
+                                Latitude = 0.3404,
+                                Longitude = 32.5759,
+                                Phone = "+256414541884",
+                                Description = "Uganda's largest national referral hospital",
+                                Capacity = 1500,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency, Surgery, ICU, Maternity, Pediatrics"
+                            },
+                            new Facility
+                            {
+                                Name = "Mbale Regional Referral Hospital",
+                                Type = FacilityType.Hospital,
+                                Address = "Pallisa Road, Mbale",
+                                Latitude = 1.0644,
+                                Longitude = 34.1747,
+                                Phone = "+256454435678",
+                                Description = "Eastern Uganda regional referral hospital",
+                                Capacity = 400,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency, Surgery, Maternity, Pediatrics"
+                            },
+                            new Facility
+                            {
+                                Name = "Mbarara Regional Referral Hospital",
+                                Type = FacilityType.Hospital,
+                                Address = "Hospital Road, Mbarara",
+                                Latitude = -0.6063,
+                                Longitude = 30.6545,
+                                Phone = "+256485421566",
+                                Description = "Western Uganda regional referral hospital",
+                                Capacity = 350,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency, Surgery, Maternity, Trauma"
+                            },
+                            new Facility
+                            {
+                                Name = "Gulu Regional Referral Hospital",
+                                Type = FacilityType.Hospital,
+                                Address = "Gulu Town, Gulu",
+                                Latitude = 2.7746,
+                                Longitude = 32.2990,
+                                Phone = "+256471432100",
+                                Description = "Northern Uganda regional referral hospital",
+                                Capacity = 300,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency, Surgery, Pediatrics"
+                            },
+                            
+                            // Shelters
+                            new Facility
+                            {
+                                Name = "Nakivale Refugee Settlement",
+                                Type = FacilityType.Shelter,
+                                Address = "Isingiro District",
+                                Latitude = -0.7833,
+                                Longitude = 30.9167,
+                                Phone = "+256800100066",
+                                Description = "UNHCR managed refugee settlement",
+                                Capacity = 5000,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Shelter, Food, Medical, Education"
+                            },
+                            new Facility
+                            {
+                                Name = "Kampala Emergency Shelter - Namuwongo",
+                                Type = FacilityType.Shelter,
+                                Address = "Namuwongo, Kampala",
+                                Latitude = 0.2986,
+                                Longitude = 32.6027,
+                                Phone = "+256414123456",
+                                Description = "Urban emergency shelter for displaced persons",
+                                Capacity = 200,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Shelter, Food, Basic Medical"
+                            },
+                            new Facility
+                            {
+                                Name = "Bududa Disaster Relief Camp",
+                                Type = FacilityType.Shelter,
+                                Address = "Bududa Town",
+                                Latitude = 1.0067,
+                                Longitude = 34.3333,
+                                Phone = "+256800100250",
+                                Description = "Landslide disaster relief shelter",
+                                Capacity = 500,
+                                CurrentOccupancy = 0,
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency Shelter, Food, Trauma Support"
+                            },
+                            
+                            // Police Stations
+                            new Facility
+                            {
+                                Name = "Central Police Station Kampala",
+                                Type = FacilityType.PoliceStation,
+                                Address = "Kampala Road, Kampala",
+                                Latitude = 0.3163,
+                                Longitude = 32.5822,
+                                Phone = "999",
+                                Description = "Main police station for Kampala",
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency Response, Reporting, Investigations"
+                            },
+                            new Facility
+                            {
+                                Name = "Jinja Road Police Station",
+                                Type = FacilityType.PoliceStation,
+                                Address = "Jinja Road, Kampala",
+                                Latitude = 0.3177,
+                                Longitude = 32.6023,
+                                Phone = "999",
+                                Description = "Police station serving eastern Kampala",
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Emergency Response, Traffic, Patrols"
+                            },
+                            
+                            // Fire Stations
+                            new Facility
+                            {
+                                Name = "Kampala Fire & Rescue Brigade HQ",
+                                Type = FacilityType.FireStation,
+                                Address = "Bukoto, Kampala",
+                                Latitude = 0.3497,
+                                Longitude = 32.5943,
+                                Phone = "+256414340440",
+                                Description = "Main fire brigade headquarters",
+                                IsOperational = true,
+                                Is24Hours = true,
+                                ServicesOffered = "Fire Fighting, Rescue Operations, Emergency Response"
+                            },
+                            
+                            // Evacuation Points
+                            new Facility
+                            {
+                                Name = "Kololo Airstrip Evacuation Point",
+                                Type = FacilityType.EvacuationPoint,
+                                Address = "Kololo, Kampala",
+                                Latitude = 0.3280,
+                                Longitude = 32.5876,
+                                Phone = "+256800100066",
+                                Description = "Emergency evacuation and helicopter landing site",
+                                Capacity = 1000,
+                                IsOperational = true,
+                                ServicesOffered = "Air Evacuation, Assembly Point"
+                            },
+                            new Facility
+                            {
+                                Name = "Nakasero Market Assembly Point",
+                                Type = FacilityType.EvacuationPoint,
+                                Address = "Nakasero, Kampala",
+                                Latitude = 0.3128,
+                                Longitude = 32.5780,
+                                Phone = "+256800100066",
+                                Description = "Urban emergency assembly point",
+                                Capacity = 500,
+                                IsOperational = true,
+                                ServicesOffered = "Assembly Point, First Aid"
+                            },
+                            
+                            // Food Distribution
+                            new Facility
+                            {
+                                Name = "WFP Kampala Distribution Center",
+                                Type = FacilityType.FoodDistribution,
+                                Address = "Industrial Area, Kampala",
+                                Latitude = 0.3050,
+                                Longitude = 32.6150,
+                                Phone = "+256414230094",
+                                Description = "World Food Programme distribution center",
+                                Capacity = 10000,
+                                IsOperational = true,
+                                OperatingHours = "8:00 AM - 5:00 PM",
+                                ServicesOffered = "Food Distribution, Emergency Supplies"
+                            },
+                            
+                            // Water Points
+                            new Facility
+                            {
+                                Name = "NWSC Emergency Water Point - Kampala",
+                                Type = FacilityType.WaterPoint,
+                                Address = "Kisenyi, Kampala",
+                                Latitude = 0.3100,
+                                Longitude = 32.5700,
+                                Phone = "+256800100977",
+                                Description = "Emergency water distribution point",
+                                IsOperational = true,
+                                OperatingHours = "6:00 AM - 8:00 PM",
+                                ServicesOffered = "Clean Water, Water Purification"
+                            }
+                        };
+                        
+                        db.Facilities.AddRange(facilities);
+                        db.SaveChanges();
+                        Console.WriteLine($"✅ Seeded {facilities.Count} facilities for Uganda");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Note: Facility seeding: {ex.Message}");
+                }
             }
 
             app.MapDefaultEndpoints();
