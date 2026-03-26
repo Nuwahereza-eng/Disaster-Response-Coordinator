@@ -336,8 +336,8 @@ The user should be reassured that help is on the way and given immediate safety 
 
                 // Create the Gemini client
                 var googleAI = new GoogleAI(apiKey: apiKey);
-                var model = googleAI.GenerativeModel(model: "gemini-2.5-flash");
-                model.Timeout = TimeSpan.FromSeconds(20);
+                var model = googleAI.GenerativeModel(model: "gemini-flash-latest");
+                model.Timeout = TimeSpan.FromSeconds(25);
 
                 // Build the conversation prompt
                 var conversationBuilder = new System.Text.StringBuilder();

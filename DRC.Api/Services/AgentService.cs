@@ -161,8 +161,8 @@ namespace DRC.Api.Services
 
                 // Initialize Gemini
                 var googleAI = new GoogleAI(apiKey: apiKey);
-                var model = googleAI.GenerativeModel(model: "gemini-2.5-flash");
-                model.Timeout = TimeSpan.FromSeconds(20);
+                var model = googleAI.GenerativeModel(model: "gemini-flash-latest");
+                model.Timeout = TimeSpan.FromSeconds(25);
 
                 // Build prompt with agent instructions and action results
                 var systemPrompt = GetAgentSystemPrompt();
