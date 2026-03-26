@@ -215,6 +215,17 @@ namespace DRC.Api
                     // Column already exists, ignore
                 }
 
+                // Add AssignedFacilityId column to EmergencyRequests if it doesn't exist
+                try
+                {
+                    db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyRequests ADD COLUMN AssignedFacilityId INTEGER");
+                    Console.WriteLine("[OK] Added AssignedFacilityId column to EmergencyRequests");
+                }
+                catch (Exception)
+                {
+                    // Column already exists, ignore
+                }
+
                 // Seed default admin user (only creates if doesn't exist)
                 try
                 {
