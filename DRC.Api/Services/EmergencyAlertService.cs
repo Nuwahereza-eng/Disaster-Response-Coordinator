@@ -123,10 +123,10 @@ namespace DRC.Api.Services
         {
             [EmergencyType.Landslide] = new[] { "landslide", "mudslide", "slope collapse", "hill collapse", "ground sliding", "soil collapse", "mountain collapse" },
             [EmergencyType.Flood] = new[] { "flood", "flooding", "water rising", "drowning", "submerged", "water everywhere", "river overflow" },
-            [EmergencyType.Fire] = new[] { "fire", "burning", "flames", "smoke", "house on fire", "forest fire", "wildfire" },
+            [EmergencyType.Fire] = new[] { "fire", "burning", "flames", "smoke", "house on fire", "forest fire", "wildfire", "fuel truck", "fuel tanker", "petrol", "diesel spill", "gas leak", "leaking fuel", "fuel spill", "tanker accident", "fuel leaking" },
             [EmergencyType.Earthquake] = new[] { "earthquake", "tremor", "ground shaking", "earth shaking", "quake" },
             [EmergencyType.DiseaseOutbreak] = new[] { "cholera", "outbreak", "epidemic", "many sick", "disease spreading", "ebola", "plague" },
-            [EmergencyType.Accident] = new[] { "accident", "crash", "collision", "vehicle accident", "car crash", "boda accident", "road accident" },
+            [EmergencyType.Accident] = new[] { "accident", "crash", "collision", "vehicle accident", "car crash", "boda accident", "road accident", "truck off road", "off the road", "overturned", "rolled over", "truck accident", "lorry accident", "tanker", "fuel truck", "truck overturned", "vehicle overturned", "matatu accident", "bus accident", "trailer accident" },
             [EmergencyType.Violence] = new[] { "attack", "fighting", "violence", "shooting", "armed", "robbery", "assault" },
             [EmergencyType.MedicalEmergency] = new[] { "heart attack", "stroke", "severe bleeding", "unconscious", "not breathing", "giving birth", "labor", "seizure", "convulsions", "choking", "poisoning", "overdose", "chest pain", "can't breathe", "allergic reaction", "anaphylaxis" },
             [EmergencyType.Drowning] = new[] { "drowning", "fell in water", "can't swim", "in the river", "in the lake" },
@@ -138,8 +138,8 @@ namespace DRC.Api.Services
         private static readonly string[] _medicalConcernKeywords = { "blood sugar", "glucose", "diabetes", "blood pressure", "headache", "fever", "cough", "stomach pain", "diarrhea", "vomiting", "feeling sick", "not feeling well", "medicine", "medication", "clinic", "doctor" };
 
         // Severity keywords
-        private static readonly string[] _criticalKeywords = { "dying", "dead", "death", "buried", "trapped", "can't breathe", "severe bleeding", "unconscious", "many people", "children", "emergency", "help now", "urgent", "critical", "life threatening", "sos", "999", "please help" };
-        private static readonly string[] _highKeywords = { "injured", "hurt", "danger", "serious", "need help", "stuck", "stranded", "bad", "worse" };
+        private static readonly string[] _criticalKeywords = { "dying", "dead", "death", "buried", "trapped", "can't breathe", "severe bleeding", "unconscious", "many people", "children", "emergency", "help now", "urgent", "critical", "life threatening", "sos", "999", "please help", "fuel truck", "fuel tanker", "petrol tanker", "diesel tanker", "tanker accident", "fuel spill", "gas leak" };
+        private static readonly string[] _highKeywords = { "injured", "hurt", "danger", "serious", "need help", "stuck", "stranded", "bad", "worse", "accident", "crash", "overturned", "off road", "off the road", "truck", "lorry", "leaking", "spill" };
 
         public EmergencyAlertService(
             IDistributedCache cache,
