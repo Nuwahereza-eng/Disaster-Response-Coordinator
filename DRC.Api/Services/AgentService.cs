@@ -202,13 +202,23 @@ Agent:";
                     _logger.LogWarning("Gemini API call was cancelled");
                     responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
                 }
+                catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogWarning("Gemini API rate limited (429). Using fallback response.");
+                    responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
+                }
                 catch (HttpRequestException httpEx)
                 {
                     _logger.LogError(httpEx, "HTTP error calling Gemini API. Status: {StatusCode}", httpEx.StatusCode);
                     responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
                 }
+                catch (Exception ex) when (ex.Message.Contains("429") || ex.Message.Contains("Too Many Requests"))
+                {
+                    _logger.LogWarning("Gemini API rate limited. Using fallback response.");
+                    responseText = BuildEmergencyAwareResponse(emergencyDetection, actionsTaken, session);
+                }
 
-                _logger.LogInformation("Received response from Gemini API");
+                _logger.LogInformation("Processed agent response");
 
                 // Add agent response to history
                 session.Messages.Add(new AgentMessage
