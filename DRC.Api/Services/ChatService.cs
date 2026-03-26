@@ -336,8 +336,8 @@ The user should be reassured that help is on the way and given immediate safety 
 
                 // Create the Gemini client
                 var googleAI = new GoogleAI(apiKey: apiKey);
-                var model = googleAI.GenerativeModel(model: "gemini-2.5-flash");
-                model.Timeout = TimeSpan.FromMinutes(2); // Increase timeout for slower networks
+                var model = googleAI.GenerativeModel(model: "gemini-1.5-flash-latest");
+                model.Timeout = TimeSpan.FromSeconds(20);
 
                 // Build the conversation prompt
                 var conversationBuilder = new System.Text.StringBuilder();
@@ -365,17 +365,27 @@ The user should be reassured that help is on the way and given immediate safety 
                 try
                 {
                     var response = await model.GenerateContent(conversationBuilder.ToString());
-                    responseText = response?.Text ?? "Sorry, I couldn't process your message.";
+                    responseText = response?.Text ?? "I'm here to help. What emergency are you facing?";
+                }
+                catch (HttpRequestException httpEx) when (httpEx.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogWarning("Gemini API rate limited (429)");
+                    return (guid?.ToString(), "The service is busy. For emergencies call: Police 999, Ambulance 911, Fire 112");
+                }
+                catch (HttpRequestException httpEx) when (httpEx.Message.Contains("429"))
+                {
+                    _logger.LogWarning("Gemini API rate limited");
+                    return (guid?.ToString(), "The service is busy. For emergencies call: Police 999, Ambulance 911, Fire 112");
                 }
                 catch (HttpRequestException httpEx)
                 {
                     _logger.LogError(httpEx, "HTTP error calling Gemini API. Status: {StatusCode}", httpEx.StatusCode);
-                    
-                    if (httpEx.Message.Contains("429") || httpEx.Message.Contains("quota", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return (guid?.ToString(), "⚠️ The AI service is temporarily unavailable due to high demand. Please try again in a few minutes.\n\n📞 For immediate help, call:\n• Police: 999\n• Ambulance: 911\n• Red Cross: 0800 100 250");
-                    }
-                    throw;
+                    return (guid?.ToString(), "I'm having trouble connecting. For emergencies call: Police 999, Ambulance 911");
+                }
+                catch (TaskCanceledException)
+                {
+                    _logger.LogWarning("Gemini API timeout");
+                    return (guid?.ToString(), "Response timed out. For emergencies call: Police 999, Ambulance 911");
                 }
 
                 _logger.LogInformation("Received response from Gemini API");
