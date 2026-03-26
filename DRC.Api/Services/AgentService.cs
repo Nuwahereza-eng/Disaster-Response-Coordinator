@@ -159,9 +159,9 @@ namespace DRC.Api.Services
                 // Build triage context to guide Gemini's response
                 var triageContext = BuildTriageContext(emergencyDetection, actionsTaken, session);
 
-                // Initialize Gemini with free model
+                // Initialize Gemini
                 var googleAI = new GoogleAI(apiKey: apiKey);
-                var model = googleAI.GenerativeModel(model: "gemini-1.5-flash-latest");
+                var model = googleAI.GenerativeModel(model: "gemini-2.0-flash");
                 model.Timeout = TimeSpan.FromSeconds(20);
 
                 // Build prompt with agent instructions and action results
