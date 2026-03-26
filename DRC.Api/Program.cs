@@ -251,11 +251,12 @@ namespace DRC.Api
                     }
                     else
                     {
-                        // Ensure admin role and active status (don't reset password)
+                        // Reset admin password, role and active status
+                        existingAdmin.PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword);
                         existingAdmin.IsActive = true;
                         existingAdmin.Role = DRC.Api.Data.Entities.UserRole.Admin;
                         db.SaveChanges();
-                        Console.WriteLine("[OK] Admin user verified (password unchanged)");
+                        Console.WriteLine("[OK] Admin user password reset: admin@drc.ug / Admin123!");
                     }
                 }
                 catch (Exception ex)
