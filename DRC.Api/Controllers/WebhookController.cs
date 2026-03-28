@@ -17,10 +17,20 @@ namespace DRC.Api.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<WebhookController> _logger;
 
+        // Deduplication: track recently processed message IDs to prevent Meta retries
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> _processedMessages = new();
+
         public WebhookController(IConfiguration configuration, ILogger<WebhookController> logger)
         {
             _configuration = configuration;
             _logger = logger;
+
+            // Clean up old entries (older than 5 minutes)
+            var cutoff = DateTime.UtcNow.AddMinutes(-5);
+            foreach (var key in _processedMessages.Where(kvp => kvp.Value < cutoff).Select(kvp => kvp.Key).ToList())
+            {
+                _processedMessages.TryRemove(key, out _);
+            }
         }
 
         /// <summary>
@@ -102,13 +112,30 @@ namespace DRC.Api.Controllers
                                         var metadata = textMessages.SingleOrDefault();
                                         if (metadata != null)
                                         {
+                                            // Deduplication: skip if already processed
+                                            if (!_processedMessages.TryAdd(metadata.Id, DateTime.UtcNow))
+                                            {
+                                                _logger.LogInformation("⏭️ Skipping duplicate message {MessageId} from {From}", metadata.Id, from);
+                                                return Ok();
+                                            }
+
                                             // Mark as read
                                             await MarkAsRead(whatsAppBusinessClient, metadata.Id);
                                             
-                                            // Process message
-                                            await whatAppService.ReceiveMessage(metadata.From, metadata.Text.Body);
+                                            // Process message in BACKGROUND — return 200 immediately to Meta
+                                            _ = Task.Run(async () =>
+                                            {
+                                                try
+                                                {
+                                                    await whatAppService.ReceiveMessage(metadata.From, metadata.Text.Body);
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    _logger.LogError(ex, "Background error processing message from {From}", metadata.From);
+                                                }
+                                            });
                                             
-                                            return Ok(new { Message = "Text message processed" });
+                                            return Ok(new { Message = "Text message accepted" });
                                         }
                                     }
                                     // Handle LOCATION messages
@@ -120,13 +147,30 @@ namespace DRC.Api.Controllers
                                             var longitude = location.GetProperty("longitude").GetDouble();
                                             var messageId = firstMessage.GetProperty("id").GetString() ?? "";
 
+                                            // Deduplication
+                                            if (!_processedMessages.TryAdd(messageId, DateTime.UtcNow))
+                                            {
+                                                _logger.LogInformation("⏭️ Skipping duplicate location {MessageId}", messageId);
+                                                return Ok();
+                                            }
+
                                             // Mark as read
                                             await MarkAsRead(whatsAppBusinessClient, messageId);
                                             
-                                            // Process location
-                                            await whatAppService.ReceiveLocation(from, latitude, longitude);
+                                            // Process location in BACKGROUND
+                                            _ = Task.Run(async () =>
+                                            {
+                                                try
+                                                {
+                                                    await whatAppService.ReceiveLocation(from, latitude, longitude);
+                                                }
+                                                catch (Exception ex)
+                                                {
+                                                    _logger.LogError(ex, "Background error processing location from {From}", from);
+                                                }
+                                            });
                                             
-                                            return Ok(new { Message = "Location message processed" });
+                                            return Ok(new { Message = "Location message accepted" });
                                         }
                                     }
                                     // Handle INTERACTIVE messages (button clicks, list selections)
@@ -149,9 +193,29 @@ namespace DRC.Api.Controllers
 
                                             if (!string.IsNullOrEmpty(responseText))
                                             {
+                                                // Deduplication
+                                                if (!_processedMessages.TryAdd(messageId, DateTime.UtcNow))
+                                                {
+                                                    _logger.LogInformation("⏭️ Skipping duplicate interactive {MessageId}", messageId);
+                                                    return Ok();
+                                                }
+
                                                 await MarkAsRead(whatsAppBusinessClient, messageId);
-                                                await whatAppService.ReceiveMessage(from, responseText);
-                                                return Ok(new { Message = "Interactive message processed" });
+                                                
+                                                // Process in BACKGROUND
+                                                _ = Task.Run(async () =>
+                                                {
+                                                    try
+                                                    {
+                                                        await whatAppService.ReceiveMessage(from, responseText);
+                                                    }
+                                                    catch (Exception ex)
+                                                    {
+                                                        _logger.LogError(ex, "Background error processing interactive from {From}", from);
+                                                    }
+                                                });
+                                                
+                                                return Ok(new { Message = "Interactive message accepted" });
                                             }
                                         }
                                     }
