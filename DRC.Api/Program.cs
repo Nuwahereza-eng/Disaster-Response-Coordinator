@@ -296,6 +296,14 @@ namespace DRC.Api
                             db.Users.Add(judgeUser);
                             Console.WriteLine($"[OK] Judge user created: {email} / {judgePassword}");
                         }
+                        else
+                        {
+                            // Always reset judge password on startup to ensure correct credentials
+                            existingJudge.PasswordHash = BCrypt.Net.BCrypt.HashPassword(judgePassword);
+                            existingJudge.FullName = name;
+                            existingJudge.IsActive = true;
+                            Console.WriteLine($"[OK] Judge user password reset: {email} / {judgePassword}");
+                        }
                     }
                     db.SaveChanges();
                 }
