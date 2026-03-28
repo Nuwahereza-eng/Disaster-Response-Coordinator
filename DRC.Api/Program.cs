@@ -111,16 +111,19 @@ namespace DRC.Api
 
             // Use Redis if connection string is configured, otherwise fall back to in-memory cache
             var redisConnectionString = builder.Configuration.GetConnectionString("redis");
-            if (!string.IsNullOrEmpty(redisConnectionString))
+            var isProduction = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Production";
+            
+            if (!string.IsNullOrEmpty(redisConnectionString) && !isProduction)
             {
+                // Only use Redis in local dev (docker-compose) — Render free Redis is unreliable
                 builder.AddRedisDistributedCache("redis");
                 Console.WriteLine("Using Redis distributed cache");
             }
             else
             {
-                // Fallback to in-memory distributed cache for deployments without Redis
+                // In-memory cache works great for hackathon demos
                 builder.Services.AddDistributedMemoryCache();
-                Console.WriteLine("Using in-memory cache (Redis not configured)");
+                Console.WriteLine("Using in-memory cache (no Redis)");
             }
 
             builder.Services.AddScoped<ICepService, CepService>();
