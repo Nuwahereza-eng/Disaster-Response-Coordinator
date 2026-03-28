@@ -17,7 +17,7 @@ namespace DRC.Api.Services
 
             var username = _configuration["Apps:AfricasTalking:Username"] ?? "sandbox";
             var apiKey = _configuration["Apps:AfricasTalking:ApiKey"] ?? "";
-            _senderId = _configuration["Apps:AfricasTalking:SenderId"] ?? "DRC_UG";
+            _senderId = _configuration["Apps:AfricasTalking:SenderId"] ?? "ATInfo";
 
             // Determine environment: sandbox username means sandbox environment
             var environment = username.Equals("sandbox", StringComparison.OrdinalIgnoreCase)
@@ -44,7 +44,8 @@ namespace DRC.Api.Services
                 _logger.LogInformation("📱 Sending SMS to {Phone} (formatted: {FormattedPhone})", phoneNumber, formattedPhone);
 
                 // Send SMS via Africa's Talking - the SDK call is synchronous, wrap in Task.Run
-                var result = await Task.Run(() => _gateway.SendMessage(formattedPhone, message));
+                _logger.LogInformation("📱 Using sender ID: {SenderId}", _senderId);
+                var result = await Task.Run(() => _gateway.SendMessage(formattedPhone, message, _senderId));
                 string resultStr = result?.ToString() ?? "OK";
 
                 _logger.LogInformation("📱 SMS sent successfully to {Phone}. Response: {Result}", formattedPhone, resultStr);

@@ -35,7 +35,7 @@ services:
       - key: Apps__AfricasTalking__ApiKey
         sync: false  # Set this manually in Render dashboard
       - key: Apps__AfricasTalking__SenderId
-        value: DRC_UG
+        value: ATInfo
 
   # Frontend Blazor App
   - type: web
