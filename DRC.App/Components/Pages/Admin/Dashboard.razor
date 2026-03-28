@@ -6,7 +6,7 @@
 @inject IJSRuntime JS
 @using DRC.App.Services
 
-<PageTitle>Admin Dashboard - Uganda Disaster Response</PageTitle>
+<PageTitle>Admin Dashboard - DIRECO</PageTitle>
 
 <div class="admin-wrapper">
     @if (isCheckingAuth)
@@ -26,7 +26,7 @@
             <div class="login-card">
                 <div class="login-header">
                     <div class="logo"><i data-lucide="shield-check"></i></div>
-                    <h1>Uganda Disaster Response</h1>
+                    <h1>DIRECO</h1>
                     <p>Admin Control Center</p>
                 </div>
                 <div class="login-form">
@@ -65,7 +65,7 @@
             <aside class="admin-sidebar">
                 <div class="sidebar-header">
                     <div class="logo"><i data-lucide="shield-check"></i></div>
-                    <h2>DRC Admin</h2>
+                    <h2>DIRECO Admin</h2>
                 </div>
                 <nav class="sidebar-nav">
                     <button class="nav-item @(activeSection == "dashboard" ? "active" : "")" @onclick='() => SetSection("dashboard")'>
