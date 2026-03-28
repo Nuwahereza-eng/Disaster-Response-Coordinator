@@ -117,8 +117,8 @@ namespace DRC.Api.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during login");
-                return new AuthResponse { Success = false, Message = "Login failed" };
+                _logger.LogError(ex, "Error during login for {Email}: {Message}", request.EmailOrPhone, ex.Message);
+                return new AuthResponse { Success = false, Message = $"Login failed: {ex.Message}" };
             }
         }
 
