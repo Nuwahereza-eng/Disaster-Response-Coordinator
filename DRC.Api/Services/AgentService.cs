@@ -745,8 +745,9 @@ Agent:";
 
             try
             {
-                // Save notification to database
-                var alertMessage = $"🚨 Emergency Alert\n\nLocation: {userLocation}\nSituation: {situationSummary}\n\nBeing assisted by Uganda Disaster Response.";
+                // Separate messages: SMS must be plain text (no emoji) to avoid UCS-2 encoding issues on African networks
+                var smsMessage = $"EMERGENCY ALERT\n\nLocation: {userLocation}\nSituation: {situationSummary}\n\nBeing assisted by Uganda Disaster Response. Call emergency services if needed.";
+                var whatsAppMessage = $"🚨 *Emergency Alert*\n\nLocation: {userLocation}\nSituation: {situationSummary}\n\nBeing assisted by Uganda Disaster Response.";
                 
                 var notification = new AlertNotification
                 {
@@ -755,7 +756,7 @@ Agent:";
                     Type = NotificationType.Emergency,
                     Channel = NotificationChannel.SMS,
                     Subject = "Emergency Contact Alert",
-                    Message = alertMessage,
+                    Message = smsMessage,
                     Status = DbNotificationStatus.Pending,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -766,10 +767,10 @@ Agent:";
                 // Format phone number for WhatsApp (needs international format)
                 var whatsAppPhone = FormatPhoneForWhatsApp(contactPhone);
 
-                // Try to send via WhatsApp
+                // Try to send via WhatsApp (can use emojis/formatting)
                 try
                 {
-                    await _whatsAppService.Value.SendMessage(whatsAppPhone, alertMessage);
+                    await _whatsAppService.Value.SendMessage(whatsAppPhone, whatsAppMessage);
                     notification.Status = DbNotificationStatus.Sent;
                     notification.SentAt = DateTime.UtcNow;
                     notification.Channel = NotificationChannel.WhatsApp;
@@ -787,7 +788,7 @@ Agent:";
                 // ALWAYS send SMS via Africa's Talking for emergency contact notifications
                 try
                 {
-                    var smsSent = await _smsService.SendSmsAsync(contactPhone, alertMessage);
+                    var smsSent = await _smsService.SendSmsAsync(contactPhone, smsMessage);
                     if (smsSent)
                     {
                         // If WhatsApp failed but SMS succeeded, mark as sent

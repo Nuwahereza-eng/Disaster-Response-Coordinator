@@ -10,7 +10,12 @@ namespace DRC.App
         {
             var builder = WebApplication.CreateBuilder(args);
             builder.AddServiceDefaults();
-            StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration); //Add this
+            
+            // Only load static web assets manifest in development (doesn't exist in published builds)
+            if (builder.Environment.IsDevelopment())
+            {
+                StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
+            }
 
             // Get API URL from environment - supports both __ and : separators
             var apiUrl = Environment.GetEnvironmentVariable("services__api__http__0")
@@ -18,6 +23,13 @@ namespace DRC.App
                 ?? builder.Configuration["services:api:http:0"] 
                 ?? builder.Configuration["ApiUrl"] 
                 ?? "http://localhost:8080";
+            
+            // Ensure URL has a protocol prefix (Render's fromService may return just hostname)
+            if (!apiUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
+                !apiUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                apiUrl = "https://" + apiUrl;
+            }
             
             Console.WriteLine($"API URL configured as: {apiUrl}");
 
@@ -79,10 +91,8 @@ namespace DRC.App
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error");
-                app.UseHsts();
+                // Note: No HSTS or HTTPS redirect — Render handles SSL termination at the load balancer
             }
-
-            app.UseHttpsRedirection();
 
             app.UseStaticFiles();
             app.UseAntiforgery();

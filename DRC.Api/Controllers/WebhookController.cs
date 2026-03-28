@@ -280,6 +280,22 @@ namespace DRC.Api.Controllers
             return Ok();
         }
 
+        /// <summary>
+        /// Test SMS endpoint - sends a simple test message via Africa's Talking
+        /// </summary>
+        [AllowAnonymous]
+        [HttpGet("africastalking/test")]
+        public async Task<IActionResult> TestSms([FromQuery] string phone, [FromServices] ISmsService smsService)
+        {
+            if (string.IsNullOrEmpty(phone))
+                return BadRequest("Provide ?phone=0779081600");
+
+            var message = "DRC Test: This is a test SMS from Disaster Response Coordinator. If you received this, SMS delivery is working.";
+            var sent = await smsService.SendSmsAsync(phone, message);
+
+            return Ok(new { sent, phone, message = sent ? "SMS sent successfully" : "SMS send failed" });
+        }
+
         private async Task MarkAsRead(IWhatsAppBusinessClient client, string messageId)
         {
             try
