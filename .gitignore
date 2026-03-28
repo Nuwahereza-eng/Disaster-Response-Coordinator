@@ -8,6 +8,9 @@
 .env.local
 .env.production
 
+# Development config with secrets (use .env for local secrets)
+**/appsettings.Development.json
+
 # Development settings with secrets
 **/appsettings.Development.json
 
