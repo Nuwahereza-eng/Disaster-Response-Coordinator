@@ -170,6 +170,52 @@ namespace DRC.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Africa's Talking SMS Delivery Report Callback
+        /// AT sends POST with: id, status, failureReason, phoneNumber, networkCode
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("africastalking/delivery")]
+        public IActionResult AfricasTalkingDeliveryReport(
+            [FromForm] string? id,
+            [FromForm] string? status,
+            [FromForm] string? phoneNumber,
+            [FromForm] string? failureReason,
+            [FromForm] string? networkCode)
+        {
+            _logger.LogInformation(
+                "📱 AT Delivery Report — Id: {Id}, Status: {Status}, Phone: {Phone}, Failure: {Failure}, Network: {Network}",
+                id, status, phoneNumber, failureReason, networkCode);
+
+            if (!string.IsNullOrEmpty(failureReason) && !status?.Equals("Success", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                _logger.LogWarning("📱 SMS delivery FAILED to {Phone}: {Reason}", phoneNumber, failureReason);
+            }
+
+            return Ok(); // Always return 200 so AT doesn't retry
+        }
+
+        /// <summary>
+        /// Africa's Talking Incoming SMS Callback (for replies)
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("africastalking/incoming")]
+        public IActionResult AfricasTalkingIncoming(
+            [FromForm] string? from,
+            [FromForm] string? to,
+            [FromForm] string? text,
+            [FromForm] string? date,
+            [FromForm] string? id,
+            [FromForm] string? linkId)
+        {
+            _logger.LogInformation(
+                "📱 AT Incoming SMS — From: {From}, To: {To}, Text: {Text}, Date: {Date}",
+                from, to, text, date);
+
+            // For now just log — can be extended to process replies
+            return Ok();
+        }
+
         private async Task MarkAsRead(IWhatsAppBusinessClient client, string messageId)
         {
             try

@@ -42,6 +42,7 @@ namespace DRC.Api.Services
         private readonly IEmergencyAlertService _emergencyAlertService;
         private readonly IBenfeitoriaService _benfeitoriaService;
         private readonly Lazy<IWhatAppService> _whatsAppService;
+        private readonly ISmsService _smsService;
         private readonly IEmailService _emailService;
         private readonly IFacilityAssignmentService _facilityAssignmentService;
         private readonly ILogger<AgentService> _logger;
@@ -58,6 +59,7 @@ namespace DRC.Api.Services
             IEmergencyAlertService emergencyAlertService,
             IBenfeitoriaService benfeitoriaService,
             Lazy<IWhatAppService> whatsAppService,
+            ISmsService smsService,
             IEmailService emailService,
             IFacilityAssignmentService facilityAssignmentService,
             ILogger<AgentService> logger)
@@ -70,6 +72,7 @@ namespace DRC.Api.Services
             _emergencyAlertService = emergencyAlertService;
             _benfeitoriaService = benfeitoriaService;
             _whatsAppService = whatsAppService;
+            _smsService = smsService;
             _emailService = emailService;
             _facilityAssignmentService = facilityAssignmentService;
             _logger = logger;
@@ -780,6 +783,31 @@ Agent:";
                     notification.Status = DbNotificationStatus.Failed;
                     notification.ErrorMessage = $"WhatsApp: {whatsAppEx.Message}";
                 }
+
+                // ALWAYS send SMS via Africa's Talking for emergency contact notifications
+                try
+                {
+                    var smsSent = await _smsService.SendSmsAsync(contactPhone, alertMessage);
+                    if (smsSent)
+                    {
+                        // If WhatsApp failed but SMS succeeded, mark as sent
+                        if (notification.Status == DbNotificationStatus.Failed)
+                        {
+                            notification.Status = DbNotificationStatus.Sent;
+                            notification.SentAt = DateTime.UtcNow;
+                        }
+                        notification.Channel = NotificationChannel.SMS;
+                        _logger.LogInformation("📱 SMS sent to {Phone} via Africa's Talking", contactPhone);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("📱 SMS failed for {Phone} via Africa's Talking", contactPhone);
+                    }
+                }
+                catch (Exception smsEx)
+                {
+                    _logger.LogWarning("📱 SMS failed for {Phone}: {Error}", contactPhone, smsEx.Message);
+                }
                 
                 await _dbContext.SaveChangesAsync();
 
@@ -857,18 +885,18 @@ Agent:";
                         
                         if (emailSent)
                         {
-                            action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} via WhatsApp + Email";
+                            action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} via SMS + WhatsApp + Email";
                             _logger.LogInformation("📧 Email alert sent to {Email}", contact.Email);
                         }
                         else
                         {
-                            action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} at {contact.Phone}";
+                            action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} via SMS + WhatsApp at {contact.Phone}";
                         }
                     }
                     else
                     {
                         // Update description to show it was auto-triggered
-                        action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} at {contact.Phone}";
+                        action.Description = $"Auto-notified {contact.Relationship}: {contact.FullName} via SMS + WhatsApp at {contact.Phone}";
                     }
                     
                     actions.Add(action);

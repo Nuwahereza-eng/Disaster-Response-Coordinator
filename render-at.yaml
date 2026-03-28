@@ -1,10 +1,11 @@
 services:
-  # Backend API
+  # Backend API - Africa's Talking Hackathon Instance
   - type: web
-    name: drc-api
+    name: drc-at-api
     runtime: docker
     dockerfilePath: ./Dockerfile.api
     plan: free
+    branch: africastalking-hackathon
     healthCheckPath: /health
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
@@ -13,17 +14,17 @@ services:
         value: http://+:8080
       - key: DATABASE_URL
         fromDatabase:
-          name: drc-postgres
+          name: drc-at-postgres
           property: connectionString
       - key: ConnectionStrings__redis
         fromService:
           type: redis
-          name: drc-redis
+          name: drc-at-redis
           property: connectionString
       - key: Apps__Gemini__Key
-        sync: false  # Set this manually in Render dashboard
+        sync: false  # Set in Render dashboard
       - key: Apps__Meta__AccessToken
-        sync: false  # Set this manually in Render dashboard
+        sync: false
       - key: Apps__Meta__Key
         sync: false
       - key: Apps__Meta__WhatsAppBusinessAccountId
@@ -31,18 +32,19 @@ services:
       - key: Apps__Meta__WhatsAppBusinessPhoneNumberId
         sync: false
       - key: Apps__AfricasTalking__Username
-        sync: false  # Set this manually in Render dashboard
+        sync: false  # Set to: drc-ug
       - key: Apps__AfricasTalking__ApiKey
-        sync: false  # Set this manually in Render dashboard
+        sync: false  # Set your AT API key
       - key: Apps__AfricasTalking__SenderId
         value: DRC_UG
 
-  # Frontend Blazor App
+  # Frontend Blazor App - Africa's Talking Hackathon Instance
   - type: web
-    name: drc-app
+    name: drc-at-app
     runtime: docker
     dockerfilePath: ./Dockerfile.app
     plan: free
+    branch: africastalking-hackathon
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
@@ -51,19 +53,19 @@ services:
       - key: services__api__http__0
         fromService:
           type: web
-          name: drc-api
+          name: drc-at-api
           property: host
 
-  # Redis Cache
+  # Redis Cache - AT Hackathon
   - type: redis
-    name: drc-redis
+    name: drc-at-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
-    ipAllowList: []  # Allow all IPs (empty list means all Render services can connect)
+    ipAllowList: []
 
-# PostgreSQL Database
+# PostgreSQL Database - AT Hackathon
 databases:
-  - name: drc-postgres
+  - name: drc-at-postgres
     plan: free
-    databaseName: drc_db
-    user: drc_user
+    databaseName: drc_at_db
+    user: drc_at_user
