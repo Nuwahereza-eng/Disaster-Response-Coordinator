@@ -22,7 +22,9 @@ namespace DRC.App
                 ?? builder.Configuration["ApiUrl"]
                 ?? Environment.GetEnvironmentVariable("services__api__http__0")
                 ?? builder.Configuration["services:api:http:0"] 
-                ?? "http://localhost:5000";
+                ?? (builder.Environment.IsProduction() 
+                    ? "https://drc-api-sttm.onrender.com" 
+                    : "http://localhost:5000");
             
             // Ensure URL has a protocol prefix (Render's fromService may return just hostname)
             if (!apiUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
