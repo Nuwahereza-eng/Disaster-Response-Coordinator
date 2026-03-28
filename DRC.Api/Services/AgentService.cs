@@ -165,7 +165,7 @@ namespace DRC.Api.Services
                 // Initialize Gemini
                 var googleAI = new GoogleAI(apiKey: apiKey);
                 var model = googleAI.GenerativeModel(model: "gemini-2.5-flash-lite");
-                model.Timeout = TimeSpan.FromSeconds(25);
+                model.Timeout = TimeSpan.FromSeconds(12);
 
                 // Build prompt with agent instructions and action results
                 var systemPrompt = GetAgentSystemPrompt();
@@ -191,7 +191,7 @@ Agent:";
                 string responseText;
                 try
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
                     var response = await model.GenerateContent(fullPrompt);
                     responseText = response?.Text ?? "I'm here to help. How can I assist you?";
                 }
