@@ -270,9 +270,7 @@ namespace DRC.Api
                 {
                     var judgeAccounts = new[]
                     {
-                        ("judge1@aifest.ug", "Judge One", "+256701000001"),
-                        ("judge2@aifest.ug", "Judge Two", "+256701000002"),
-                        ("judge3@aifest.ug", "Judge Three", "+256701000003")
+                        ("drc@africastalking.ug", "AT Judge", "+256701000001"),
                     };
                     var judgePassword = "Judge2026!";
 
