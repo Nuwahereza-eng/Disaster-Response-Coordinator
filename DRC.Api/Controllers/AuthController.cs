@@ -1,6 +1,5 @@
 using DRC.Api.Interfaces;
 using DRC.Api.Models.Auth;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -58,7 +57,6 @@ namespace DRC.Api.Controllers
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
-        [Authorize]
         [HttpGet("profile")]
         public async Task<IActionResult> GetProfile()
         {
@@ -73,7 +71,6 @@ namespace DRC.Api.Controllers
             return Ok(user);
         }
 
-        [Authorize]
         [HttpPut("profile")]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
         {
@@ -89,7 +86,6 @@ namespace DRC.Api.Controllers
             return Ok(result);
         }
 
-        [Authorize]
         [HttpPost("change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
         {
@@ -105,7 +101,6 @@ namespace DRC.Api.Controllers
             return Ok(result);
         }
 
-        [Authorize]
         [HttpGet("emergency-contacts")]
         public async Task<IActionResult> GetEmergencyContacts()
         {
@@ -117,7 +112,6 @@ namespace DRC.Api.Controllers
             return Ok(contacts);
         }
 
-        [Authorize]
         [HttpPost("emergency-contacts")]
         public async Task<IActionResult> AddEmergencyContact([FromBody] AddEmergencyContactRequest request)
         {
@@ -132,7 +126,6 @@ namespace DRC.Api.Controllers
             return Ok(contact);
         }
 
-        [Authorize]
         [HttpDelete("emergency-contacts/{contactId}")]
         public async Task<IActionResult> DeleteEmergencyContact(int contactId)
         {
@@ -147,7 +140,6 @@ namespace DRC.Api.Controllers
             return Ok(new { message = "Contact deleted" });
         }
 
-        [Authorize]
         [HttpGet("history")]
         public async Task<IActionResult> GetUserHistory()
         {

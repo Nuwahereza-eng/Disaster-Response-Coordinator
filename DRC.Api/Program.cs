@@ -3,10 +3,7 @@ using DRC.Api.Data;
 using DRC.Api.Data.Entities;
 using DRC.Api.Interfaces;
 using DRC.Api.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using ViaCep;
 using WhatsappBusiness.CloudApi.Configurations;
 using WhatsappBusiness.CloudApi.Extensions;
@@ -48,27 +45,7 @@ namespace DRC.Api
                     options.UseSqlite(connectionString));
             }
 
-            // Configure JWT Authentication
-            var jwtKey = builder.Configuration["Jwt:Key"] ?? "DisasterResponseCoordinatorSecretKey2024!@#$%";
-            var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "DRC.Api";
-            var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DRC.App";
-
-            builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
-                {
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateIssuer = true,
-                        ValidateAudience = true,
-                        ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true,
-                        ValidIssuer = jwtIssuer,
-                        ValidAudience = jwtAudience,
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-                    };
-                });
-
-            builder.Services.AddAuthorization();
+            // Auth removed — all endpoints are publicly accessible
 
             // Gemini API is now configured directly in ChatService using Mscc.GenerativeAI
 
@@ -552,8 +529,7 @@ namespace DRC.Api
 
             app.UseCors();
 
-            app.UseAuthentication();
-            app.UseAuthorization();
+            // Auth middleware removed — endpoints are open
 
             // Root endpoint
             app.MapGet("/", () => Results.Ok(new { 

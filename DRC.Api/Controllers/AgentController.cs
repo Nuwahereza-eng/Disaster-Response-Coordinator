@@ -1,6 +1,5 @@
 using DRC.Api.Interfaces;
 using DRC.Api.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -75,7 +74,6 @@ namespace DRC.Api.Controllers
         /// <summary>
         /// Get the current user's agent sessions (requires authentication)
         /// </summary>
-        [Authorize]
         [HttpGet("MySessions")]
         public async Task<IActionResult> GetMySessions()
         {
@@ -193,7 +191,6 @@ namespace DRC.Api.Controllers
         /// <summary>
         /// Get the current user's complete chat history (requires authentication)
         /// </summary>
-        [Authorize]
         [HttpGet("ChatHistory")]
         public async Task<IActionResult> GetChatHistory([FromQuery] int? limit = null)
         {

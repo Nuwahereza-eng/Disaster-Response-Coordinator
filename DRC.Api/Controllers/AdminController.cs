@@ -1,7 +1,6 @@
 using DRC.Api.Data;
 using DRC.Api.Data.Entities;
 using DRC.Api.Interfaces;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +8,6 @@ namespace DRC.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "Admin")]
     public class AdminController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

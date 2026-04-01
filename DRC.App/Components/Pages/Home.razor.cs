@@ -75,6 +75,11 @@ namespace DRC.App.Components.Pages
                     // Load chat history
                     await LoadChatHistoryAsync();
                 }
+                else
+                {
+                    // Auto-login with demo account for seamless experience
+                    await AutoLoginAsync();
+                }
                 
                 // CRITICAL: Request user location immediately for emergency response
                 await RequestUserLocationAsync();
@@ -88,6 +93,26 @@ namespace DRC.App.Components.Pages
             catch
             {
                 // Ignore if fails
+            }
+        }
+
+        private async Task AutoLoginAsync()
+        {
+            try
+            {
+                var result = await UserClient.LoginAsync("drc@africastalking.ug", "Judge2026!");
+                if (result != null)
+                {
+                    isAuthenticated = true;
+                    userName = UserClient.CurrentUser?.FullName;
+                    userPhone = UserClient.CurrentUser?.Phone;
+                    AgentClient.SetAuthToken(UserClient.AuthToken);
+                    await LoadChatHistoryAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Auto-login failed: {ex.Message}");
             }
         }
 
