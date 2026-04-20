@@ -1,39 +1,40 @@
+# Render Blueprint — DRC (Uganda)
+# Uses Neon Postgres (external, never expires) instead of Render's built-in
+# Postgres which deletes free DBs after 90 days.
 services:
   # Backend API
   - type: web
     name: drc-api
     runtime: docker
     dockerfilePath: ./Dockerfile.api
+    region: frankfurt          # closest Render region to Uganda
     plan: free
-    healthCheckPath: /health
+    healthCheckPath: /alive
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:8080
+      # Neon Postgres connection string — set manually in Render dashboard.
+      # Format: postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
       - key: DATABASE_URL
-        fromDatabase:
-          name: drc-postgres
-          property: connectionString
-      - key: ConnectionStrings__redis
-        fromService:
-          type: redis
-          name: drc-redis
-          property: connectionString
+        sync: false
       - key: Apps__Gemini__Key
-        sync: false  # Set this manually in Render dashboard
+        sync: false
       - key: Apps__Meta__AccessToken
-        sync: false  # Set this manually in Render dashboard
+        sync: false
       - key: Apps__Meta__Key
         sync: false
+      - key: Apps__Meta__AppName
+        value: Direco
       - key: Apps__Meta__WhatsAppBusinessAccountId
         sync: false
       - key: Apps__Meta__WhatsAppBusinessPhoneNumberId
         sync: false
       - key: Apps__AfricasTalking__Username
-        sync: false  # Set this manually in Render dashboard
+        sync: false
       - key: Apps__AfricasTalking__ApiKey
-        sync: false  # Set this manually in Render dashboard
+        sync: false
       - key: Apps__AfricasTalking__SenderId
         value: ATInfo
 
@@ -42,25 +43,16 @@ services:
     name: drc-app
     runtime: docker
     dockerfilePath: ./Dockerfile.app
+    region: frankfurt
     plan: free
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:8080
+      # Must point at the API service: https://drc-api.onrender.com
       - key: ApiUrl
-        sync: false  # Set in Render dashboard to: https://drc-api.onrender.com
-
-  # Redis Cache
-  - type: redis
-    name: drc-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: []  # Allow all IPs (empty list means all Render services can connect)
-
-# PostgreSQL Database
-databases:
-  - name: drc-postgres
-    plan: free
-    databaseName: drc_db
-    user: drc_user
+        fromService:
+          type: web
+          name: drc-api
+          property: host
