@@ -4,6 +4,8 @@
 @inject AdminClientService AdminService
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
+@inject LiveHubClient Live
+@implements IAsyncDisposable
 @using DRC.App.Services
 
 <PageTitle>Admin Dashboard - DIRECO</PageTitle>
@@ -134,9 +136,15 @@
                         <h1>@GetSectionTitle()</h1>
                         <span class="header-date">@DateTime.Now.ToString("dddd, MMMM dd, yyyy")</span>
                     </div>
-                    <button class="refresh-btn" @onclick="RefreshData" disabled="@isLoading">
-                        <i data-lucide="refresh-cw" class="@(isLoading ? "spinning" : "")"></i> Refresh
-                    </button>
+                    <div class="header-actions">
+                        <span class="live-indicator @(Live.IsConnected ? "connected" : "disconnected")" title="@(Live.IsConnected ? "Real-time feed connected" : "Real-time feed offline")">
+                            <span class="live-dot"></span>
+                            @(Live.IsConnected ? "LIVE" : "OFFLINE")
+                        </span>
+                        <button class="refresh-btn" @onclick="RefreshData" disabled="@isLoading">
+                            <i data-lucide="refresh-cw" class="@(isLoading ? "spinning" : "")"></i> Refresh
+                        </button>
+                    </div>
                 </header>
 
                 <div class="main-content">
@@ -179,6 +187,29 @@
                     }
                 </div>
             </main>
+        </div>
+
+        @* Real-time incident toasts (stacked, auto-dismiss) *@
+        <div class="live-toast-stack">
+            @foreach (var t in liveToasts)
+            {
+                <div class="live-toast severity-@(t.Severity?.ToLower() ?? "high")" @key="t.Id">
+                    <div class="live-toast-icon"><i data-lucide="alert-triangle"></i></div>
+                    <div class="live-toast-body">
+                        <div class="live-toast-title">
+                            🚨 New @t.Type via @t.Channel · <span class="sev">@t.Severity</span>
+                        </div>
+                        <div class="live-toast-text">
+                            @(string.IsNullOrWhiteSpace(t.Location) ? "Location unknown" : t.Location)
+                            @if (!string.IsNullOrWhiteSpace(t.Phone))
+                            {
+                                <span> · @t.Phone</span>
+                            }
+                        </div>
+                    </div>
+                    <button class="live-toast-close" @onclick="() => DismissToast(t.Id)">×</button>
+                </div>
+            }
         </div>
     }
     
@@ -259,6 +290,77 @@
     private List<FacilityDto>? facilities;
     private List<NotificationDto>? notifications;
 
+    // --- Live feed state ---
+    private readonly List<LiveEmergency> liveToasts = new();
+    private bool liveSubscribed = false;
+
+    private void DismissToast(int id)
+    {
+        liveToasts.RemoveAll(x => x.Id == id);
+        StateHasChanged();
+    }
+
+    private async Task SubscribeLiveAsync()
+    {
+        if (liveSubscribed) return;
+        liveSubscribed = true;
+
+        Live.EmergencyCreated += OnLiveEmergency;
+        Live.Reconnected += OnLiveReconnect;
+        Live.Disconnected += OnLiveDisconnect;
+
+        await Live.StartAsync(joinAdmins: true);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnLiveEmergency(LiveEmergency e)
+    {
+        await InvokeAsync(async () =>
+        {
+            // Show newest on top, cap at 5 toasts
+            liveToasts.Insert(0, e);
+            if (liveToasts.Count > 5) liveToasts.RemoveRange(5, liveToasts.Count - 5);
+
+            // Bump pending badge immediately so it feels live, full refresh in background
+            if (stats != null) stats.PendingEmergencyRequests++;
+            StateHasChanged();
+
+            // Subtle chime / vibration
+            try { await JS.InvokeVoidAsync("liveChime"); } catch { /* ignore */ }
+
+            // Auto-dismiss this toast after 12s
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(12_000);
+                await InvokeAsync(() =>
+                {
+                    liveToasts.RemoveAll(x => x.Id == e.Id);
+                    StateHasChanged();
+                });
+            });
+
+            // Refresh the emergencies list if the user is looking at it
+            if (activeSection == "emergencies" || activeSection == "dashboard")
+            {
+                await RefreshData();
+            }
+        });
+    }
+
+    private async void OnLiveReconnect() => await InvokeAsync(StateHasChanged);
+    private async void OnLiveDisconnect() => await InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (liveSubscribed)
+        {
+            Live.EmergencyCreated -= OnLiveEmergency;
+            Live.Reconnected -= OnLiveReconnect;
+            Live.Disconnected -= OnLiveDisconnect;
+        }
+        await Live.DisposeAsync();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         // Initial check - will be updated in OnAfterRenderAsync
@@ -282,6 +384,7 @@
                     AdminService.SetAuthToken(token);
                     isAuthenticated = true;
                     await LoadDashboard();
+                    await SubscribeLiveAsync();
                 }
             }
             catch { }
@@ -322,6 +425,7 @@
                 }
                 
                 await LoadDashboard();
+                await SubscribeLiveAsync();
             }
             else
             {

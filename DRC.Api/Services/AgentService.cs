@@ -45,6 +45,7 @@ namespace DRC.Api.Services
         private readonly ISmsService _smsService;
         private readonly IEmailService _emailService;
         private readonly IFacilityAssignmentService _facilityAssignmentService;
+        private readonly ILiveNotifier _live;
         private readonly ILogger<AgentService> _logger;
         
         // In-memory fallback when Redis is unavailable
@@ -62,6 +63,7 @@ namespace DRC.Api.Services
             ISmsService smsService,
             IEmailService emailService,
             IFacilityAssignmentService facilityAssignmentService,
+            ILiveNotifier live,
             ILogger<AgentService> logger)
         {
             _configuration = configuration;
@@ -75,6 +77,7 @@ namespace DRC.Api.Services
             _smsService = smsService;
             _emailService = emailService;
             _facilityAssignmentService = facilityAssignmentService;
+            _live = live;
             _logger = logger;
         }
 
@@ -540,6 +543,22 @@ Agent:";
 
                 _dbContext.EmergencyRequests.Add(emergencyRequest);
                 await _dbContext.SaveChangesAsync();
+
+                // 🔴 Live push to admin dashboard
+                await _live.EmergencyCreatedAsync(new
+                {
+                    id = emergencyRequest.Id,
+                    type = emergencyRequest.Type.ToString(),
+                    severity = emergencyRequest.Severity.ToString(),
+                    description = emergencyRequest.Description,
+                    location = emergencyRequest.Location,
+                    phone = emergencyRequest.UserPhone,
+                    channel = "Agent",
+                    latitude = emergencyRequest.Latitude,
+                    longitude = emergencyRequest.Longitude,
+                    assignedFacility = nearestFacility?.Name,
+                    createdAt = emergencyRequest.CreatedAt
+                });
 
                 // Create notification record
                 var notification = new AlertNotification

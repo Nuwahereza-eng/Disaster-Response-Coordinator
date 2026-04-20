@@ -62,7 +62,10 @@ namespace DRC.App
                 var jsRuntime = sp.GetRequiredService<Microsoft.JSInterop.IJSRuntime>();
                 return new UserClientService(httpClient, jsRuntime);
             });
-            
+
+            // Real-time hub client (pushes emergency events from the API)
+            builder.Services.AddScoped<LiveHubClient>();
+
             // Configure Blazor Server circuit options for longer AI response times
             builder.Services.AddServerSideBlazor()
                 .AddCircuitOptions(options =>

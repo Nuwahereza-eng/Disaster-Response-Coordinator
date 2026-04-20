@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="app.css" />
     <link rel="stylesheet" href="DRC.App.styles.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -19,6 +21,8 @@
     <Routes />
     <script src="_framework/blazor.web.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
         window.ScrollToBottom = (elementName) => {
             element = document.getElementById(elementName);
@@ -73,6 +77,120 @@
                 );
             });
         }
+
+        // Short haptic buzz for the SOS button (best-effort; not all browsers support it)
+        window.sosBuzz = () => {
+            try {
+                if (navigator.vibrate) {
+                    navigator.vibrate([80, 40, 80]);
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        // Subtle "new incident" chime for admin live feed (WebAudio + vibration fallback)
+        window.liveChime = () => {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (Ctx) {
+                    const ctx = new Ctx();
+                    const o = ctx.createOscillator();
+                    const g = ctx.createGain();
+                    o.type = 'sine';
+                    o.frequency.setValueAtTime(880, ctx.currentTime);
+                    o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+                    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+                    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+                    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+                    o.connect(g); g.connect(ctx.destination);
+                    o.start();
+                    o.stop(ctx.currentTime + 0.5);
+                }
+                if (navigator.vibrate) { navigator.vibrate(30); }
+            } catch (e) { /* ignore */ }
+        }
+
+        // Leaflet map helper — renders user position + nearby facilities.
+        window.drcMap = {
+            _instances: {},
+            render: function (elementId, userLat, userLng, facilities) {
+                if (typeof L === 'undefined') return;
+                const el = document.getElementById(elementId);
+                if (!el) return;
+
+                let inst = this._instances[elementId];
+                if (!inst) {
+                    const map = L.map(elementId, { zoomControl: true, attributionControl: false })
+                        .setView([userLat, userLng], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19, attribution: '© OpenStreetMap'
+                    }).addTo(map);
+                    inst = { map: map, layer: L.layerGroup().addTo(map), userMarker: null };
+                    this._instances[elementId] = inst;
+                }
+                const { map, layer } = inst;
+                layer.clearLayers();
+
+                // User location — pulsing blue dot
+                const userIcon = L.divIcon({
+                    className: 'drc-user-pin',
+                    html: '<div class="drc-user-pulse"></div><div class="drc-user-dot"></div>',
+                    iconSize: [22, 22], iconAnchor: [11, 11]
+                });
+                if (inst.userMarker) map.removeLayer(inst.userMarker);
+                inst.userMarker = L.marker([userLat, userLng], { icon: userIcon, zIndexOffset: 1000 })
+                    .addTo(map).bindPopup('<b>You are here</b>');
+
+                // Facility markers — color-coded by type
+                const colorByType = {
+                    Hospital: '#dc2626', Clinic: '#ef4444', Pharmacy: '#f59e0b',
+                    PoliceStation: '#1d4ed8', FireStation: '#ea580c',
+                    Shelter: '#16a34a', EvacuationPoint: '#0891b2',
+                    FoodDistribution: '#a16207', WaterPoint: '#0ea5e9', Other: '#64748b'
+                };
+                const iconByType = {
+                    Hospital: '🏥', Clinic: '➕', Pharmacy: '💊',
+                    PoliceStation: '👮', FireStation: '🚒',
+                    Shelter: '🏠', EvacuationPoint: '🚐',
+                    FoodDistribution: '🍲', WaterPoint: '💧', Other: '📍'
+                };
+                const bounds = [[userLat, userLng]];
+                (facilities || []).forEach(f => {
+                    const color = colorByType[f.type] || '#64748b';
+                    const emoji = iconByType[f.type] || '📍';
+                    const marker = L.marker([f.latitude, f.longitude], {
+                        icon: L.divIcon({
+                            className: 'drc-fac-pin',
+                            html: `<div class="drc-fac-bubble" style="background:${color}">${emoji}</div>`,
+                            iconSize: [28, 28], iconAnchor: [14, 28]
+                        })
+                    });
+                    const dist = (typeof f.distanceKm === 'number') ? ` • ${f.distanceKm} km` : '';
+                    const phone = f.phone ? `<br/><a href="tel:${f.phone}">${f.phone}</a>` : '';
+                    marker.bindPopup(
+                        `<b>${f.name}</b><br/>` +
+                        `<span style="color:${color};font-weight:600">${f.type}</span>${dist}` +
+                        (f.address ? `<br/>${f.address}` : '') + phone);
+                    layer.addLayer(marker);
+                    bounds.push([f.latitude, f.longitude]);
+                });
+
+                if (bounds.length > 1) {
+                    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+                } else {
+                    map.setView([userLat, userLng], 14);
+                }
+                setTimeout(() => map.invalidateSize(), 50);
+            },
+            invalidate: function (elementId) {
+                const inst = this._instances[elementId];
+                if (inst && inst.map) inst.map.invalidateSize();
+            },
+            destroy: function (elementId) {
+                const inst = this._instances[elementId];
+                if (inst && inst.map) { inst.map.remove(); }
+                delete this._instances[elementId];
+            }
+        };
 
         // Admin auth token storage
         window.setAdminToken = (token) => {

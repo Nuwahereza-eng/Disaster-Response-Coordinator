@@ -126,14 +126,19 @@ namespace DRC.Api
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
+            // Real-time push to admin dashboard + chat UI
+            builder.Services.AddSignalR();
+            builder.Services.AddSingleton<DRC.Api.Services.ILiveNotifier, DRC.Api.Services.LiveNotifier>();
+
             // Add CORS for frontend
             builder.Services.AddCors(options =>
             {
                 options.AddDefaultPolicy(policy =>
                 {
-                    policy.AllowAnyOrigin()
+                    policy.SetIsOriginAllowed(_ => true) // SignalR needs credentials, so can't use AllowAnyOrigin
                         .AllowAnyMethod()
-                        .AllowAnyHeader();
+                        .AllowAnyHeader()
+                        .AllowCredentials();
                 });
             });
 
@@ -538,7 +543,29 @@ namespace DRC.Api
                 docs = "/swagger"
             }));
 
+            // Deep health check — verifies DB connectivity (used by uptime monitors)
+            app.MapGet("/api/health", async (ApplicationDbContext db) =>
+            {
+                try
+                {
+                    var canConnect = await db.Database.CanConnectAsync();
+                    var provider = db.Database.ProviderName ?? "unknown";
+                    return Results.Ok(new
+                    {
+                        status = canConnect ? "healthy" : "degraded",
+                        db = canConnect ? "up" : "down",
+                        provider,
+                        time = DateTime.UtcNow
+                    });
+                }
+                catch (Exception ex)
+                {
+                    return Results.Json(new { status = "unhealthy", error = ex.Message }, statusCode: 503);
+                }
+            });
+
             app.MapControllers();
+            app.MapHub<DRC.Api.Hubs.LiveHub>("/hubs/live");
 
             app.Run();
         }

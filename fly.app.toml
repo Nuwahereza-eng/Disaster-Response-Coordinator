@@ -1,18 +1,24 @@
-# Fly.io configuration for DRC App (Frontend)
+# Fly.io configuration for DRC Blazor frontend (Uganda hackathon)
 app = "drc-app"
-primary_region = "gru"  # São Paulo, closest to Brazil
+primary_region = "jnb"   # Johannesburg — closest Fly region to Uganda
 
 [build]
   dockerfile = "DRC.App/Dockerfile"
 
+[env]
+  ASPNETCORE_ENVIRONMENT = "Production"
+  ASPNETCORE_URLS = "http://+:8080"
+  # ApiUrl must be set via `fly secrets set ApiUrl=https://drc-api.fly.dev`
+
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = "off"
   auto_start_machines = true
-  min_machines_running = 0
+  min_machines_running = 1
+  processes = ["app"]
 
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
+  memory_mb = 512

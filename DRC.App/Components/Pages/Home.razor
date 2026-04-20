@@ -199,5 +199,45 @@
             <div class="error-message"><i class="bi bi-exclamation-circle"></i> @ErrorMessage</div>
         }
     </div>
+
+    @* ======================= FLOATING SOS BUTTON ======================= *@
+    <button class="sos-fab @(sosConfirming ? "confirming" : "")"
+            @onclick="OnSosClick"
+            disabled="@Processing"
+            title="Emergency SOS - one tap to dispatch help">
+        @if (sosConfirming)
+        {
+            <span class="sos-label">Tap again to confirm</span>
+            <span class="sos-countdown">@sosSecondsLeft</span>
+        }
+        else
+        {
+            <i class="bi bi-exclamation-octagon-fill"></i>
+            <span class="sos-label">SOS</span>
+        }
+    </button>
+
+    @* ======================= NEARBY HELP MAP ======================= *@
+    <div class="nearby-map-widget @(mapCollapsed ? "collapsed" : "")">
+        <div class="nearby-map-head">
+            <span class="nm-title">
+                <i class="bi bi-geo-alt-fill"></i>
+                @(mapCollapsed ? "Nearby Help" : "Nearby Help")
+            </span>
+            <button class="nm-toggle" @onclick="ToggleMap" title="@(mapCollapsed ? "Expand" : "Collapse")">
+                <i class="bi @(mapCollapsed ? "bi-chevron-up" : "bi-chevron-down")"></i>
+            </button>
+        </div>
+        @if (!mapCollapsed)
+        {
+            <div class="nearby-map-body">
+                <div id="nearbyMapCanvas" class="nearby-map-canvas"></div>
+                <div class="nearby-map-footer">
+                    <span class="nm-count">@nearbyFacilities.Count nearby</span>
+                    <span class="nm-status @(mapError ? "error" : "")">@mapStatus</span>
+                </div>
+            </div>
+        }
+    </div>
 </div>
 </div>

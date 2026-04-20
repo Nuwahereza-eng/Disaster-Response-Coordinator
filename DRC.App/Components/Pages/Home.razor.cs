@@ -6,6 +6,8 @@ using Microsoft.JSInterop;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Threading.Tasks;
 
 namespace DRC.App.Components.Pages
@@ -23,6 +25,9 @@ namespace DRC.App.Components.Pages
 
         [Inject]
         private NavigationManager NavigationManager { get; set; }
+
+        [Inject]
+        private IHttpClientFactory HttpFactory { get; set; }
 
         private List<MessageSave> messages = new List<MessageSave>();
         private List<AgentActionDisplay> recentActions = new List<AgentActionDisplay>();
@@ -50,6 +55,18 @@ namespace DRC.App.Components.Pages
         
         // Enter key handling
         private bool shouldPreventDefault = false;
+
+        // SOS — two-tap confirm pattern (prevents accidental dispatch)
+        private bool sosConfirming = false;
+        private int sosSecondsLeft = 5;
+        private CancellationTokenSource? sosConfirmCts;
+
+        // Nearby Help map
+        private bool mapCollapsed = false;
+        private bool mapHydrated = false;
+        private string mapStatus = "Waiting for location…";
+        private bool mapError = false;
+        private List<NearbyFacilityDto> nearbyFacilities = new();
 
         protected override async Task OnInitializedAsync()
         {
@@ -84,6 +101,9 @@ namespace DRC.App.Components.Pages
                 // CRITICAL: Request user location immediately for emergency response
                 await RequestUserLocationAsync();
                 StateHasChanged();
+
+                // Fire-and-forget: populate Nearby Help map once we have coords
+                _ = HydrateMapAsync();
             }
             
             try
@@ -242,7 +262,101 @@ namespace DRC.App.Components.Pages
                 locationStatus = "Location access denied";
             }
         }
-        
+
+        private void ToggleMap()
+        {
+            mapCollapsed = !mapCollapsed;
+            if (!mapCollapsed)
+            {
+                // Re-render after the canvas div is back in the DOM
+                _ = InvokeAsync(async () =>
+                {
+                    await Task.Delay(60);
+                    if (userLatitude.HasValue && userLongitude.HasValue)
+                    {
+                        await RenderMapAsync();
+                    }
+                    else
+                    {
+                        _ = HydrateMapAsync();
+                    }
+                });
+            }
+        }
+
+        private async Task HydrateMapAsync()
+        {
+            // Wait until we actually have a GPS fix (up to ~15s)
+            for (int i = 0; i < 30 && (userLatitude == null || userLongitude == null); i++)
+            {
+                await Task.Delay(500);
+            }
+
+            if (userLatitude == null || userLongitude == null)
+            {
+                mapStatus = "Enable location to see nearby help";
+                mapError = true;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            await LoadNearbyFacilitiesAsync();
+            await RenderMapAsync();
+        }
+
+        private async Task LoadNearbyFacilitiesAsync()
+        {
+            try
+            {
+                mapStatus = "Loading nearby facilities\u2026";
+                mapError = false;
+                await InvokeAsync(StateHasChanged);
+
+                var http = HttpFactory.CreateClient("UserApi");
+                var url = $"api/Facilities/nearby?lat={userLatitude}&lng={userLongitude}&radiusKm=30&limit=25";
+                var list = await http.GetFromJsonAsync<List<NearbyFacilityDto>>(url);
+                nearbyFacilities = list ?? new();
+                mapStatus = nearbyFacilities.Count > 0
+                    ? $"Nearest: {nearbyFacilities[0].Name} \u2022 {nearbyFacilities[0].DistanceKm} km"
+                    : "No facilities within 30 km";
+            }
+            catch (Exception ex)
+            {
+                nearbyFacilities = new();
+                mapStatus = "Could not load facilities";
+                mapError = true;
+                Console.WriteLine($"Facility load failed: {ex.Message}");
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+
+        private async Task RenderMapAsync()
+        {
+            if (userLatitude == null || userLongitude == null) return;
+            if (mapCollapsed) return;
+            try
+            {
+                var payload = nearbyFacilities.Select(f => new
+                {
+                    id = f.Id,
+                    name = f.Name,
+                    type = f.Type,
+                    address = f.Address,
+                    latitude = f.Latitude,
+                    longitude = f.Longitude,
+                    phone = f.Phone,
+                    distanceKm = f.DistanceKm
+                });
+                await JSRuntime.InvokeVoidAsync("drcMap.render", "nearbyMapCanvas",
+                    userLatitude.Value, userLongitude.Value, payload);
+                mapHydrated = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Map render failed: {ex.Message}");
+            }
+        }
+
         private async Task CallAgent()
         {
             try
@@ -323,6 +437,69 @@ namespace DRC.App.Components.Pages
                 _ => "bi-check-circle-fill"
             };
         }
+
+        // =========================================================
+        // SOS — one floating button, two-tap confirmation pattern.
+        // 1st tap  → 5-second "tap again to confirm" countdown + haptic.
+        // 2nd tap  → dispatches an emergency with GPS to the agent.
+        // No tap   → automatically cancels after 5s.
+        // =========================================================
+        private async Task OnSosClick()
+        {
+            if (Processing) return;
+
+            // Best-effort haptic feedback (mobile browsers)
+            try { await JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { /* ignore */ }
+
+            if (!sosConfirming)
+            {
+                sosConfirming = true;
+                sosSecondsLeft = 5;
+                sosConfirmCts?.Cancel();
+                sosConfirmCts = new CancellationTokenSource();
+                _ = RunSosCountdown(sosConfirmCts.Token);
+                StateHasChanged();
+                return;
+            }
+
+            // Second tap: dispatch emergency
+            sosConfirmCts?.Cancel();
+            sosConfirming = false;
+            StateHasChanged();
+            await DispatchSosAsync();
+        }
+
+        private async Task RunSosCountdown(CancellationToken ct)
+        {
+            try
+            {
+                while (sosSecondsLeft > 0 && !ct.IsCancellationRequested)
+                {
+                    await Task.Delay(1000, ct);
+                    sosSecondsLeft--;
+                    await InvokeAsync(StateHasChanged);
+                }
+                if (!ct.IsCancellationRequested)
+                {
+                    sosConfirming = false;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (TaskCanceledException) { /* user tapped again or navigated */ }
+        }
+
+        private async Task DispatchSosAsync()
+        {
+            // Make sure we have the latest location before dispatching
+            await RequestUserLocationAsync();
+
+            var locationText = (userLatitude.HasValue && userLongitude.HasValue)
+                ? $" My GPS coordinates are {userLatitude:F5}, {userLongitude:F5}."
+                : "";
+
+            prompt = $"🚨 SOS — I need immediate emergency help.{locationText} Please dispatch the closest responders now and notify my emergency contacts.";
+            await CallAgent();
+        }
     }
 
     public class AgentActionDisplay
@@ -340,5 +517,20 @@ namespace DRC.App.Components.Pages
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
         public string? Error { get; set; }
+    }
+
+    public class NearbyFacilityDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string? Address { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public string? Phone { get; set; }
+        public int? Capacity { get; set; }
+        public int? CurrentOccupancy { get; set; }
+        public bool Is24Hours { get; set; }
+        public double DistanceKm { get; set; }
     }
 }

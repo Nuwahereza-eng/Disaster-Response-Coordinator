@@ -1188,3 +1188,106 @@
     }
 }
 
+/* ========================================
+   FLOATING SOS BUTTON — one-tap emergency
+   ======================================== */
+.sos-fab {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 2000;
+
+    min-width: 76px;
+    height: 76px;
+    padding: 0 1rem;
+    border: none;
+    border-radius: 999px;
+
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    color: #fff;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+
+    box-shadow:
+        0 10px 25px rgba(239, 68, 68, 0.45),
+        0 4px 10px rgba(0, 0, 0, 0.15);
+    transition: transform 0.15s ease, box-shadow 0.25s ease, background 0.25s ease;
+    animation: sosPulse 2s ease-in-out infinite;
+}
+
+.sos-fab:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow:
+        0 14px 30px rgba(239, 68, 68, 0.55),
+        0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.sos-fab:active {
+    transform: translateY(0) scale(0.97);
+}
+
+.sos-fab:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    animation: none;
+}
+
+.sos-fab i {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.sos-fab .sos-label {
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.sos-fab.confirming {
+    background: linear-gradient(135deg, #fbbf24, #b45309);
+    animation: sosShake 0.6s ease-in-out infinite;
+    min-width: 150px;
+    padding: 0 1.25rem;
+}
+
+.sos-fab.confirming .sos-label {
+    font-size: 0.75rem;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.sos-fab .sos-countdown {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-top: 2px;
+}
+
+@keyframes sosPulse {
+    0%, 100% { box-shadow: 0 10px 25px rgba(239, 68, 68, 0.45), 0 4px 10px rgba(0,0,0,0.15), 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    50%      { box-shadow: 0 10px 25px rgba(239, 68, 68, 0.45), 0 4px 10px rgba(0,0,0,0.15), 0 0 0 14px rgba(239, 68, 68, 0); }
+}
+
+@keyframes sosShake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-2px); }
+    75%      { transform: translateX(2px); }
+}
+
+/* Keep the FAB above sidebars on small screens */
+@media (max-width: 640px) {
+    .sos-fab {
+        right: 0.75rem;
+        bottom: 0.75rem;
+        min-width: 64px;
+        height: 64px;
+    }
+    .sos-fab i { font-size: 1.2rem; }
+    .sos-fab .sos-label { font-size: 0.65rem; }
+}
