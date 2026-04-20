@@ -17,14 +17,12 @@ namespace DRC.App
                 StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
             }
 
-            // Get API URL from environment - ApiUrl takes priority (set manually on Render)
+            // Get API URL from environment - ApiUrl takes priority (set manually on Render/Fly)
             var apiUrl = Environment.GetEnvironmentVariable("ApiUrl")
                 ?? builder.Configuration["ApiUrl"]
                 ?? Environment.GetEnvironmentVariable("services__api__http__0")
-                ?? builder.Configuration["services:api:http:0"] 
-                ?? (builder.Environment.IsProduction() 
-                    ? "https://drc-api-sttm.onrender.com" 
-                    : "http://localhost:5099");
+                ?? builder.Configuration["services:api:http:0"]
+                ?? "http://localhost:5099";
             
             // Ensure URL has a protocol prefix (Render's fromService may return just hostname)
             if (!apiUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && 
