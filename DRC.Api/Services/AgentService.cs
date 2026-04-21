@@ -311,19 +311,17 @@ Agent:";
                 );
                 actions.Add(action);
 
-                // AUTO-NOTIFY: Alert user's registered emergency contacts
-                if (session.UserId.HasValue)
-                {
-                    var contactNotifications = await NotifyUserEmergencyContacts(
-                        session.UserId.Value,
-                        emergencyDetection.Type.ToString(),
-                        emergencyDetection.Severity.ToString(),
-                        locationForEmergency,
-                        message,
-                        session
-                    );
-                    actions.AddRange(contactNotifications);
-                }
+                // AUTO-NOTIFY: Alert user's registered emergency contacts + Next of Kin.
+                // Fires even when there's no logged-in user — demo defaults are used.
+                var contactNotifications = await NotifyUserEmergencyContacts(
+                    session.UserId,
+                    emergencyDetection.Type.ToString(),
+                    emergencyDetection.Severity.ToString(),
+                    locationForEmergency,
+                    message,
+                    session
+                );
+                actions.AddRange(contactNotifications);
             }
 
             // Action 2: Find nearby facilities if keywords present
@@ -858,10 +856,10 @@ Agent:";
         private const string DemoFallbackName  = "Next of Kin (demo)";
 
         private async Task<List<AgentAction>> NotifyUserEmergencyContacts(
-            int userId, 
-            string emergencyType, 
-            string severity, 
-            string location, 
+            int? userId,
+            string emergencyType,
+            string severity,
+            string location,
             string situationDescription,
             AgentSession session)
         {
@@ -869,23 +867,24 @@ Agent:";
 
             try
             {
-                // Get the user and their emergency contacts
-                var user = await _dbContext.Users
-                    .Include(u => u.EmergencyContacts)
-                    .FirstOrDefaultAsync(u => u.Id == userId);
-
-                if (user == null)
+                // Resolve user (optional — guests still get demo NoK notifications)
+                DRC.Api.Data.Entities.User? user = null;
+                if (userId.HasValue)
                 {
-                    _logger.LogInformation("User {UserId} not found; skipping notifications", userId);
-                    return actions;
+                    user = await _dbContext.Users
+                        .Include(u => u.EmergencyContacts)
+                        .FirstOrDefaultAsync(u => u.Id == userId.Value);
                 }
 
-                var contactCount = user.EmergencyContacts?.Count ?? 0;
+                var displayName  = user?.FullName ?? "Demo User";
+                var contactCount = user?.EmergencyContacts?.Count ?? 0;
                 _logger.LogInformation("🚨 AUTO-NOTIFY: Alerting {Count} registered contacts + Next of Kin for {UserName}",
-                    contactCount, user.FullName);
+                    contactCount, displayName);
 
-                foreach (var contact in user.EmergencyContacts)
+                if (user != null)
                 {
+                    foreach (var contact in user.EmergencyContacts)
+                    {
                     var situationSummary = $"{emergencyType} emergency ({severity} severity) reported by {user.FullName}. " +
                                           $"Details: {(situationDescription.Length > 100 ? situationDescription.Substring(0, 100) + "..." : situationDescription)}";
 
@@ -904,7 +903,7 @@ Agent:";
                         var emailSent = await _emailService.SendEmergencyAlertAsync(
                             contact.Email,
                             contact.FullName,
-                            user.FullName,
+                            displayName,
                             emergencyType,
                             severity,
                             location,
@@ -928,18 +927,19 @@ Agent:";
                     }
                     
                     actions.Add(action);
-                }
+                    }
+                } // end if (user != null)
 
-                // ---- Next of Kin (always fires; uses demo defaults if user hasn't set values) ----
-                var nokName     = !string.IsNullOrWhiteSpace(user.NextOfKinName)     ? user.NextOfKinName!     : DemoFallbackName;
-                var nokPhone    = !string.IsNullOrWhiteSpace(user.NextOfKinPhone)    ? user.NextOfKinPhone!    : DemoFallbackPhone;
-                var nokWhatsApp = !string.IsNullOrWhiteSpace(user.NextOfKinWhatsApp) ? user.NextOfKinWhatsApp! : nokPhone;
-                var nokEmail    = !string.IsNullOrWhiteSpace(user.NextOfKinEmail)    ? user.NextOfKinEmail!    : DemoFallbackEmail;
-                var usingDefaults = string.IsNullOrWhiteSpace(user.NextOfKinPhone) && string.IsNullOrWhiteSpace(user.NextOfKinEmail);
+                // ---- Next of Kin (always fires; uses demo defaults if user hasn't set values or is guest) ----
+                var nokName     = !string.IsNullOrWhiteSpace(user?.NextOfKinName)     ? user!.NextOfKinName!     : DemoFallbackName;
+                var nokPhone    = !string.IsNullOrWhiteSpace(user?.NextOfKinPhone)    ? user!.NextOfKinPhone!    : DemoFallbackPhone;
+                var nokWhatsApp = !string.IsNullOrWhiteSpace(user?.NextOfKinWhatsApp) ? user!.NextOfKinWhatsApp! : nokPhone;
+                var nokEmail    = !string.IsNullOrWhiteSpace(user?.NextOfKinEmail)    ? user!.NextOfKinEmail!    : DemoFallbackEmail;
+                var usingDefaults = string.IsNullOrWhiteSpace(user?.NextOfKinPhone) && string.IsNullOrWhiteSpace(user?.NextOfKinEmail);
 
                 try
                 {
-                    var nokSummary = $"{emergencyType} emergency ({severity} severity) reported by {user.FullName}. " +
+                    var nokSummary = $"{emergencyType} emergency ({severity} severity) reported by {displayName}. " +
                                      $"Details: {(situationDescription.Length > 100 ? situationDescription.Substring(0, 100) + "..." : situationDescription)}";
 
                     // SMS + WhatsApp (ExecuteNotifyContacts fires both on the given phone)
@@ -968,7 +968,7 @@ Agent:";
                     try
                     {
                         var emailOk = await _emailService.SendEmergencyAlertAsync(
-                            nokEmail, nokName, user.FullName, emergencyType, severity, location, situationDescription);
+                            nokEmail, nokName, displayName, emergencyType, severity, location, situationDescription);
                         if (emailOk)
                         {
                             nokAction.Description += " + Email";
