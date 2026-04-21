@@ -10,106 +10,19 @@
 <div class="profile-container">
     @if (isInitializing)
     {
-        <!-- Loading state while checking auth -->
+        <!-- Loading state while auto-signing in the demo user -->
         <div class="auth-loading">
             <div class="loading-spinner"></div>
-            <p>Loading...</p>
-        </div>
-    }
-    else if (!UserService.IsAuthenticated)
-    {
-        <!-- Login/Register Form -->
-        <div class="auth-wrapper">
-            <div class="auth-info">
-                <div class="auth-logo">
-                    <i class="bi bi-shield-check"></i>
-                </div>
-                <h2>DIRECO</h2>
-                <p>Create an account to access our AI-powered emergency response agent.</p>
-                <ul class="benefits-list">
-                    <li><i class="bi bi-robot"></i> <span>Chat with our intelligent agent 24/7</span></li>
-                    <li><i class="bi bi-telephone-fill"></i> <span>Save emergency contacts for quick alerts</span></li>
-                    <li><i class="bi bi-house-fill"></i> <span>Register for shelters during disasters</span></li>
-                    <li><i class="bi bi-file-text"></i> <span>Track your request history</span></li>
-                    <li><i class="bi bi-exclamation-triangle"></i> <span>Get personalized emergency assistance</span></li>
-                </ul>
-            </div>
-            <div class="auth-card">
-                <div class="auth-tabs">
-                    <button class="tab-btn @(showLogin ? "active" : "")" @onclick="() => showLogin = true">
-                        <i class="bi bi-box-arrow-in-right"></i> Login
-                    </button>
-                    <button class="tab-btn @(!showLogin ? "active" : "")" @onclick="() => showLogin = false">
-                        <i class="bi bi-person-plus"></i> Register
-                    </button>
-                </div>
-
-                @if (showLogin)
-                {
-                    <h2>Welcome Back</h2>
-                    <p class="auth-subtitle">Login to continue to the agent</p>
-                    <div class="form-group">
-                        <label><i class="bi bi-envelope"></i> Email</label>
-                        <input type="email" @bind="loginEmail" placeholder="your@email.com" class="form-control" />
-                    </div>
-                    <div class="form-group">
-                        <label><i class="bi bi-lock-fill"></i> Password</label>
-                        <div class="password-input-wrapper">
-                            <input type="@(showLoginPassword ? "text" : "password")" @bind="loginPassword" placeholder="Password" class="form-control" />
-                            <button type="button" class="password-toggle" @onclick="() => showLoginPassword = !showLoginPassword" tabindex="-1">
-                                <i class="bi @(showLoginPassword ? "bi-eye-slash" : "bi-eye")"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" @onclick="LoginAsync" disabled="@isLoading">
-                        @if (isLoading) { <span class="spinner-sm"></span> } Login & Start Chatting
-                    </button>
-                }
-                else
-                {
-                    <h2>Get Started</h2>
-                    <p class="auth-subtitle">Create your account in seconds</p>
-                    <div class="form-group">
-                        <label><i class="bi bi-person"></i> Full Name</label>
-                        <input type="text" @bind="registerName" placeholder="John Okello" class="form-control" />
-                    </div>
-                    <div class="form-group">
-                        <label><i class="bi bi-envelope"></i> Email</label>
-                        <input type="email" @bind="registerEmail" placeholder="your@email.com" class="form-control" />
-                    </div>
-                    <div class="form-group">
-                        <label><i class="bi bi-telephone"></i> Phone</label>
-                        <input type="tel" @bind="registerPhone" placeholder="+256 7XX XXX XXX" class="form-control" />
-                    </div>
-                    <div class="form-group">
-                        <label><i class="bi bi-lock-fill"></i> Password</label>
-                        <div class="password-input-wrapper">
-                            <input type="@(showRegisterPassword ? "text" : "password")" @bind="registerPassword" placeholder="Min 6 characters" class="form-control" />
-                            <button type="button" class="password-toggle" @onclick="() => showRegisterPassword = !showRegisterPassword" tabindex="-1">
-                                <i class="bi @(showRegisterPassword ? "bi-eye-slash" : "bi-eye")"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary" @onclick="RegisterAsync" disabled="@isLoading">
-                        @if (isLoading) { <span class="spinner-sm"></span> } Create Account & Start Chatting
-                    </button>
-                }
-
-                @if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    <div class="alert alert-danger">@errorMessage</div>
-                }
-            </div>
+            <p>Loading your profile...</p>
         </div>
     }
     else
     {
-        <!-- User Profile -->
+        <!-- User Profile (no login required \u2014 demo mode auto-signs in) -->
         <div class="profile-header">
             <h1><i class="bi bi-person-circle"></i> My Profile</h1>
             <div class="header-actions">
                 <a href="/" class="btn btn-primary"><i class="bi bi-chat-dots"></i> Chat with Agent</a>
-                <button class="btn btn-outline" @onclick="Logout"><i class="bi bi-box-arrow-right"></i> Logout</button>
             </div>
         </div>
 
@@ -379,14 +292,10 @@
     {
         if (firstRender)
         {
-            // Initialize auth state from browser storage (requires JS)
+            // Demo mode: InitializeAsync will auto-sign-in as admin if needed.
             await UserService.InitializeAsync();
+            await LoadProfile();
             isInitializing = false;
-            
-            if (UserService.IsAuthenticated)
-            {
-                await LoadProfile();
-            }
             StateHasChanged();
         }
     }

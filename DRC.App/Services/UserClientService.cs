@@ -20,19 +20,19 @@ namespace DRC.App.Services
         public async Task InitializeAsync()
         {
             if (_initialized) return;
-            
+
             try
             {
                 // Try to restore auth state from browser storage
                 var token = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", "drc_auth_token");
                 var userJson = await _jsRuntime.InvokeAsync<string?>("localStorage.getItem", "drc_user");
-                
+
                 if (!string.IsNullOrEmpty(token))
                 {
                     _authToken = token;
-                    _httpClient.DefaultRequestHeaders.Authorization = 
+                    _httpClient.DefaultRequestHeaders.Authorization =
                         new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-                    
+
                     if (!string.IsNullOrEmpty(userJson))
                     {
                         _currentUser = System.Text.Json.JsonSerializer.Deserialize<UserProfileDto>(userJson);
@@ -43,8 +43,22 @@ namespace DRC.App.Services
             {
                 // JS interop may fail during prerendering
             }
-            
+
             _initialized = true;
+
+            // Demo-mode auto-login: no accounts needed during pitching.
+            // Silently sign in as the seeded admin user so profile / NoK / history just work.
+            if (string.IsNullOrEmpty(_authToken))
+            {
+                try
+                {
+                    await LoginAsync("admin@drc.ug", "Admin123!");
+                }
+                catch
+                {
+                    // Best-effort — if the API is down, UI will still render.
+                }
+            }
         }
 
         public void SetAuthToken(string token)
