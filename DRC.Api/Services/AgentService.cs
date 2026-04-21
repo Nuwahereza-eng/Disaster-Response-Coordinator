@@ -876,7 +876,7 @@ Agent:";
                         .FirstOrDefaultAsync(u => u.Id == userId.Value);
                 }
 
-                var displayName  = user?.FullName ?? "Demo User";
+                var displayName  = user?.FullName ?? "Peter Nuwahereza";
                 var contactCount = user?.EmergencyContacts?.Count ?? 0;
                 _logger.LogInformation("🚨 AUTO-NOTIFY: Alerting {Count} registered contacts + Next of Kin for {UserName}",
                     contactCount, displayName);
