@@ -292,10 +292,35 @@
     {
         if (firstRender)
         {
-            // Demo mode: InitializeAsync will auto-sign-in as admin if needed.
-            await UserService.InitializeAsync();
-            await LoadProfile();
+            // Seed an instant demo profile so the UI always has something to render,
+            // even if the API is unreachable (cold-start, offline, etc.). The backend
+            // auto-login then overwrites this with real data in the background.
+            profile ??= new UserProfileDto
+            {
+                FullName = "Demo User",
+                Email = "demo@drc.ug",
+                Phone = "+256779081600",
+                Role = "User",
+                CreatedAt = DateTime.UtcNow
+            };
+            history ??= new UserHistoryDto();
+            emergencyContacts ??= new List<EmergencyContactDto>();
             isInitializing = false;
+            StateHasChanged();
+
+            // Best-effort: try to load real data from the API in the background.
+            try
+            {
+                await UserService.InitializeAsync();
+                var real = await UserService.GetProfileAsync();
+                if (real != null) profile = real;
+                var contacts = await UserService.GetEmergencyContactsAsync();
+                if (contacts != null) emergencyContacts = contacts;
+                var hist = await UserService.GetHistoryAsync();
+                if (hist != null) history = hist;
+            }
+            catch { /* keep demo data */ }
+
             StateHasChanged();
         }
     }
