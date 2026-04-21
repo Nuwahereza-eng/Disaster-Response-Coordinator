@@ -40,6 +40,19 @@ namespace DRC.Api.Data.Entities
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
 
+        // Next of Kin (for emergency notifications via SMS / WhatsApp / Email)
+        [MaxLength(100)]
+        public string? NextOfKinName { get; set; }
+
+        [MaxLength(20)]
+        public string? NextOfKinPhone { get; set; }
+
+        [MaxLength(20)]
+        public string? NextOfKinWhatsApp { get; set; }
+
+        [MaxLength(255)]
+        public string? NextOfKinEmail { get; set; }
+
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? LastLoginAt { get; set; }

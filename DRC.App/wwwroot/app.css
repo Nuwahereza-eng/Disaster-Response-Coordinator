@@ -5089,3 +5089,26 @@ button:hover .bi,
     .nearby-map-widget.collapsed { width: 160px; }
     .nearby-map-canvas { height: 220px; }
 }
+
+/* ===== Next of Kin section ===== */
+.section-subtitle {
+    margin: -0.25rem 0 1rem 0;
+    color: var(--text-secondary, #64748b);
+    font-size: 0.9rem;
+}
+.nok-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+.nok-form input[type="email"] { grid-column: 1 / -1; }
+.nok-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.nok-form .alert { grid-column: 1 / -1; margin: 0; }
+@media (max-width: 640px) {
+    .nok-form { grid-template-columns: 1fr; }
+}

@@ -147,6 +147,16 @@ namespace DRC.Api.Services
                 if (request.Longitude.HasValue)
                     user.Longitude = request.Longitude;
 
+                // Next of Kin — allow explicit clearing by sending empty string
+                if (request.NextOfKinName != null)
+                    user.NextOfKinName = string.IsNullOrWhiteSpace(request.NextOfKinName) ? null : request.NextOfKinName.Trim();
+                if (request.NextOfKinPhone != null)
+                    user.NextOfKinPhone = string.IsNullOrWhiteSpace(request.NextOfKinPhone) ? null : request.NextOfKinPhone.Trim();
+                if (request.NextOfKinWhatsApp != null)
+                    user.NextOfKinWhatsApp = string.IsNullOrWhiteSpace(request.NextOfKinWhatsApp) ? null : request.NextOfKinWhatsApp.Trim();
+                if (request.NextOfKinEmail != null)
+                    user.NextOfKinEmail = string.IsNullOrWhiteSpace(request.NextOfKinEmail) ? null : request.NextOfKinEmail.Trim();
+
                 await _context.SaveChangesAsync();
 
                 return new AuthResponse
@@ -388,7 +398,11 @@ namespace DRC.Api.Services
                 Latitude = user.Latitude,
                 Longitude = user.Longitude,
                 IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
+                CreatedAt = user.CreatedAt,
+                NextOfKinName = user.NextOfKinName,
+                NextOfKinPhone = user.NextOfKinPhone,
+                NextOfKinWhatsApp = user.NextOfKinWhatsApp,
+                NextOfKinEmail = user.NextOfKinEmail
             };
         }
     }

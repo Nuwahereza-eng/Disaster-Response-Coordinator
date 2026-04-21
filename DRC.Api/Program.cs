@@ -190,6 +190,19 @@ namespace DRC.Api
                     try { db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN WhatsAppNumber TEXT"); } catch { }
                     try { db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN Email TEXT"); } catch { }
                     try { db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyRequests ADD COLUMN AssignedFacilityId INTEGER"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN NextOfKinName TEXT"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN NextOfKinPhone TEXT"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN NextOfKinWhatsApp TEXT"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN NextOfKinEmail TEXT"); } catch { }
+                }
+                else
+                {
+                    // Postgres — EnsureCreated builds new tables but does NOT add columns to pre-existing tables.
+                    // Add NextOfKin columns idempotently for databases created before this feature.
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"NextOfKinName\" character varying(100)"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"NextOfKinPhone\" character varying(20)"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"NextOfKinWhatsApp\" character varying(20)"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"NextOfKinEmail\" character varying(255)"); } catch { }
                 }
 
                 // Seed default admin user (only creates if doesn't exist)

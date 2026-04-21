@@ -150,6 +150,53 @@
             </div>
 
             <div class="profile-section">
+                <h3><i class="bi bi-person-heart"></i> Next of Kin</h3>
+                <p class="section-subtitle">The first person we contact in an emergency. Reachable by SMS, WhatsApp, and email.</p>
+
+                @if (!isEditingNok)
+                {
+                    <div class="profile-info">
+                        <div class="info-row">
+                            <label>Name</label>
+                            <span>@(string.IsNullOrWhiteSpace(profile.NextOfKinName) ? "— not set —" : profile.NextOfKinName)</span>
+                        </div>
+                        <div class="info-row">
+                            <label><i class="bi bi-telephone"></i> SMS Phone</label>
+                            <span>@(string.IsNullOrWhiteSpace(profile.NextOfKinPhone) ? DefaultNokPhone + " (default)" : profile.NextOfKinPhone)</span>
+                        </div>
+                        <div class="info-row">
+                            <label><i class="bi bi-whatsapp"></i> WhatsApp</label>
+                            <span>@(string.IsNullOrWhiteSpace(profile.NextOfKinWhatsApp) ? DefaultNokPhone + " (default)" : profile.NextOfKinWhatsApp)</span>
+                        </div>
+                        <div class="info-row">
+                            <label><i class="bi bi-envelope"></i> Email</label>
+                            <span>@(string.IsNullOrWhiteSpace(profile.NextOfKinEmail) ? DefaultNokEmail + " (default)" : profile.NextOfKinEmail)</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-primary" @onclick="StartEditNok"><i class="bi bi-pencil"></i> Edit Next of Kin</button>
+                }
+                else
+                {
+                    <div class="add-contact-form nok-form">
+                        <input type="text" @bind="nokName" placeholder="Name (e.g. Jane Nuwahereza)" />
+                        <input type="tel" @bind="nokPhone" placeholder="SMS phone (e.g. 0779081600)" />
+                        <input type="tel" @bind="nokWhatsApp" placeholder="WhatsApp number (e.g. 0779081600)" />
+                        <input type="email" @bind="nokEmail" placeholder="Email (e.g. nuwaherezapeter34@gmail.com)" />
+                        <div class="nok-actions">
+                            <button class="btn btn-sm btn-primary" @onclick="SaveNok" disabled="@isSavingNok">
+                                @if (isSavingNok) { <span class="spinner-sm"></span> } <i class="bi bi-check-lg"></i> Save
+                            </button>
+                            <button class="btn btn-sm btn-outline" @onclick="CancelEditNok" disabled="@isSavingNok"><i class="bi bi-x-lg"></i> Cancel</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(nokMessage))
+                        {
+                            <div class="alert @(nokSuccess ? "alert-success" : "alert-danger")">@nokMessage</div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="profile-section">
                 <h3><i class="bi bi-telephone-fill"></i> Emergency Contacts</h3>
                 @if (emergencyContacts != null && emergencyContacts.Any())
                 {
@@ -310,6 +357,19 @@
     private string newContactWhatsApp = "";
     private string newContactRelationship = "";
 
+    // Next of Kin defaults (shown as placeholders / suggested values)
+    private const string DefaultNokPhone = "0779081600";
+    private const string DefaultNokEmail = "nuwaherezapeter34@gmail.com";
+
+    private bool isEditingNok = false;
+    private bool isSavingNok = false;
+    private bool nokSuccess = false;
+    private string? nokMessage;
+    private string nokName = "";
+    private string nokPhone = "";
+    private string nokWhatsApp = "";
+    private string nokEmail = "";
+
     protected override async Task OnInitializedAsync()
     {
         // Auth will be checked in OnAfterRenderAsync when JS is available
@@ -421,6 +481,55 @@
     {
         await UserService.DeleteEmergencyContactAsync(id);
         emergencyContacts = await UserService.GetEmergencyContactsAsync();
+    }
+
+    private void StartEditNok()
+    {
+        nokMessage = null;
+        nokName = profile?.NextOfKinName ?? "";
+        nokPhone = string.IsNullOrWhiteSpace(profile?.NextOfKinPhone) ? DefaultNokPhone : profile!.NextOfKinPhone!;
+        nokWhatsApp = string.IsNullOrWhiteSpace(profile?.NextOfKinWhatsApp) ? DefaultNokPhone : profile!.NextOfKinWhatsApp!;
+        nokEmail = string.IsNullOrWhiteSpace(profile?.NextOfKinEmail) ? DefaultNokEmail : profile!.NextOfKinEmail!;
+        isEditingNok = true;
+    }
+
+    private void CancelEditNok()
+    {
+        isEditingNok = false;
+        nokMessage = null;
+    }
+
+    private async Task SaveNok()
+    {
+        isSavingNok = true;
+        nokMessage = null;
+        StateHasChanged();
+        try
+        {
+            var ok = await UserService.UpdateNextOfKinAsync(nokName, nokPhone, nokWhatsApp, nokEmail);
+            if (ok)
+            {
+                profile = await UserService.GetProfileAsync();
+                nokSuccess = true;
+                nokMessage = "Next of kin saved.";
+                isEditingNok = false;
+            }
+            else
+            {
+                nokSuccess = false;
+                nokMessage = "Could not save. Check the email format and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            nokSuccess = false;
+            nokMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSavingNok = false;
+            StateHasChanged();
+        }
     }
 
     private void Logout()

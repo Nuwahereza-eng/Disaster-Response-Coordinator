@@ -60,6 +60,11 @@ namespace DRC.Api.Models.Auth
         public double? Longitude { get; set; }
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public string? NextOfKinName { get; set; }
+        public string? NextOfKinPhone { get; set; }
+        public string? NextOfKinWhatsApp { get; set; }
+        public string? NextOfKinEmail { get; set; }
     }
 
     public class UpdateProfileRequest
@@ -72,6 +77,19 @@ namespace DRC.Api.Models.Auth
 
         public double? Latitude { get; set; }
         public double? Longitude { get; set; }
+
+        [MaxLength(100)]
+        public string? NextOfKinName { get; set; }
+
+        [MaxLength(20)]
+        public string? NextOfKinPhone { get; set; }
+
+        [MaxLength(20)]
+        public string? NextOfKinWhatsApp { get; set; }
+
+        [MaxLength(255)]
+        [EmailAddress]
+        public string? NextOfKinEmail { get; set; }
     }
 
     public class ChangePasswordRequest

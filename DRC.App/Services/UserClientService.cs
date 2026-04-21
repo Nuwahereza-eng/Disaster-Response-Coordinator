@@ -164,6 +164,22 @@ namespace DRC.App.Services
             catch { return false; }
         }
 
+        public async Task<bool> UpdateNextOfKinAsync(string? name, string? phone, string? whatsApp, string? email)
+        {
+            try
+            {
+                var response = await _httpClient.PutAsJsonAsync("/api/auth/profile", new
+                {
+                    nextOfKinName = name ?? "",
+                    nextOfKinPhone = phone ?? "",
+                    nextOfKinWhatsApp = whatsApp ?? "",
+                    nextOfKinEmail = email ?? ""
+                });
+                return response.IsSuccessStatusCode;
+            }
+            catch { return false; }
+        }
+
         public async Task<List<EmergencyContactDto>?> GetEmergencyContactsAsync()
         {
             try
@@ -259,6 +275,11 @@ namespace DRC.App.Services
         public string Phone { get; set; } = "";
         public string Role { get; set; } = "";
         public DateTime CreatedAt { get; set; }
+
+        public string? NextOfKinName { get; set; }
+        public string? NextOfKinPhone { get; set; }
+        public string? NextOfKinWhatsApp { get; set; }
+        public string? NextOfKinEmail { get; set; }
     }
 
     public class EmergencyContactDto
