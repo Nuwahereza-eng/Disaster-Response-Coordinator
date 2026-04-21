@@ -144,73 +144,52 @@ namespace DRC.Api
 
             var app = builder.Build();
 
-            // Auto-migrate database
+            // Auto-migrate database. EnsureCreated() builds the full schema via EF Core
+            // on both SQLite (local) and PostgreSQL (Neon/Render). The legacy SQLite-only
+            // "CREATE TABLE IF NOT EXISTS / ALTER TABLE" patches below are only needed
+            // for pre-existing local SQLite databases created before those columns existed.
             using (var scope = app.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 db.Database.EnsureCreated();
-                
-                // Ensure ChatMessages table exists (for existing databases)
-                try
-                {
-                    db.Database.ExecuteSqlRaw(@"
-                        CREATE TABLE IF NOT EXISTS ChatMessages (
-                            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            SessionId TEXT NOT NULL,
-                            UserId INTEGER,
-                            Role TEXT NOT NULL,
-                            Content TEXT NOT NULL,
-                            UserPhone TEXT,
-                            UserLocation TEXT,
-                            Latitude REAL,
-                            Longitude REAL,
-                            ActionsJson TEXT,
-                            CreatedAt TEXT NOT NULL,
-                            FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE SET NULL
-                        )
-                    ");
-                    
-                    // Create indexes for ChatMessages
-                    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_SessionId ON ChatMessages(SessionId)");
-                    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_UserId ON ChatMessages(UserId)");
-                    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_CreatedAt ON ChatMessages(CreatedAt)");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Note: ChatMessages table setup: {ex.Message}");
-                }
 
-                // Add WhatsAppNumber column to EmergencyContacts if it doesn't exist
-                try
-                {
-                    db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN WhatsAppNumber TEXT");
-                    Console.WriteLine("[OK] Added WhatsAppNumber column to EmergencyContacts");
-                }
-                catch (Exception)
-                {
-                    // Column already exists, ignore
-                }
+                var isSqlite = db.Database.IsSqlite();
 
-                // Add Email column to EmergencyContacts if it doesn't exist
-                try
+                if (isSqlite)
                 {
-                    db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN Email TEXT");
-                    Console.WriteLine("[OK] Added Email column to EmergencyContacts");
-                }
-                catch (Exception)
-                {
-                    // Column already exists, ignore
-                }
+                    // Legacy patches — only run against SQLite. On Postgres these are
+                    // unnecessary (EnsureCreated already created everything) and the
+                    // syntax ("AUTOINCREMENT", bare ALTER) isn't valid PG anyway.
+                    try
+                    {
+                        db.Database.ExecuteSqlRaw(@"
+                            CREATE TABLE IF NOT EXISTS ChatMessages (
+                                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                SessionId TEXT NOT NULL,
+                                UserId INTEGER,
+                                Role TEXT NOT NULL,
+                                Content TEXT NOT NULL,
+                                UserPhone TEXT,
+                                UserLocation TEXT,
+                                Latitude REAL,
+                                Longitude REAL,
+                                ActionsJson TEXT,
+                                CreatedAt TEXT NOT NULL,
+                                FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE SET NULL
+                            )
+                        ");
+                        db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_SessionId ON ChatMessages(SessionId)");
+                        db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_UserId ON ChatMessages(UserId)");
+                        db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_ChatMessages_CreatedAt ON ChatMessages(CreatedAt)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Note: ChatMessages table setup: {ex.Message}");
+                    }
 
-                // Add AssignedFacilityId column to EmergencyRequests if it doesn't exist
-                try
-                {
-                    db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyRequests ADD COLUMN AssignedFacilityId INTEGER");
-                    Console.WriteLine("[OK] Added AssignedFacilityId column to EmergencyRequests");
-                }
-                catch (Exception)
-                {
-                    // Column already exists, ignore
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN WhatsAppNumber TEXT"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyContacts ADD COLUMN Email TEXT"); } catch { }
+                    try { db.Database.ExecuteSqlRaw("ALTER TABLE EmergencyRequests ADD COLUMN AssignedFacilityId INTEGER"); } catch { }
                 }
 
                 // Seed default admin user (only creates if doesn't exist)
