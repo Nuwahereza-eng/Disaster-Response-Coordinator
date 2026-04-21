@@ -850,6 +850,13 @@ Agent:";
         /// <summary>
         /// Automatically notifies all emergency contacts registered with a user when an emergency is detected
         /// </summary>
+        // Demo-time defaults used when a user has no Next-of-Kin configured.
+        // These are intentionally hard-coded so live pitches always produce a real
+        // SMS / WhatsApp / Email round-trip the judges can see.
+        private const string DemoFallbackPhone = "0779081600";
+        private const string DemoFallbackEmail = "nuwaherezapeter34@gmail.com";
+        private const string DemoFallbackName  = "Next of Kin (demo)";
+
         private async Task<List<AgentAction>> NotifyUserEmergencyContacts(
             int userId, 
             string emergencyType, 
@@ -867,14 +874,15 @@ Agent:";
                     .Include(u => u.EmergencyContacts)
                     .FirstOrDefaultAsync(u => u.Id == userId);
 
-                if (user == null || user.EmergencyContacts == null || !user.EmergencyContacts.Any())
+                if (user == null)
                 {
-                    _logger.LogInformation("No emergency contacts found for user {UserId}", userId);
+                    _logger.LogInformation("User {UserId} not found; skipping notifications", userId);
                     return actions;
                 }
 
-                _logger.LogInformation("🚨 AUTO-NOTIFY: Alerting {Count} emergency contacts for user {UserName}", 
-                    user.EmergencyContacts.Count, user.FullName);
+                var contactCount = user.EmergencyContacts?.Count ?? 0;
+                _logger.LogInformation("🚨 AUTO-NOTIFY: Alerting {Count} registered contacts + Next of Kin for {UserName}",
+                    contactCount, user.FullName);
 
                 foreach (var contact in user.EmergencyContacts)
                 {
@@ -921,6 +929,64 @@ Agent:";
                     
                     actions.Add(action);
                 }
+
+                // ---- Next of Kin (always fires; uses demo defaults if user hasn't set values) ----
+                var nokName     = !string.IsNullOrWhiteSpace(user.NextOfKinName)     ? user.NextOfKinName!     : DemoFallbackName;
+                var nokPhone    = !string.IsNullOrWhiteSpace(user.NextOfKinPhone)    ? user.NextOfKinPhone!    : DemoFallbackPhone;
+                var nokWhatsApp = !string.IsNullOrWhiteSpace(user.NextOfKinWhatsApp) ? user.NextOfKinWhatsApp! : nokPhone;
+                var nokEmail    = !string.IsNullOrWhiteSpace(user.NextOfKinEmail)    ? user.NextOfKinEmail!    : DemoFallbackEmail;
+                var usingDefaults = string.IsNullOrWhiteSpace(user.NextOfKinPhone) && string.IsNullOrWhiteSpace(user.NextOfKinEmail);
+
+                try
+                {
+                    var nokSummary = $"{emergencyType} emergency ({severity} severity) reported by {user.FullName}. " +
+                                     $"Details: {(situationDescription.Length > 100 ? situationDescription.Substring(0, 100) + "..." : situationDescription)}";
+
+                    // SMS + WhatsApp (ExecuteNotifyContacts fires both on the given phone)
+                    var nokAction = await ExecuteNotifyContacts(nokPhone, nokName, nokSummary, location, session);
+                    nokAction.Description = usingDefaults
+                        ? $"Auto-notified Next of Kin (demo defaults) at {nokPhone}"
+                        : $"Auto-notified Next of Kin: {nokName} at {nokPhone}";
+
+                    // If NoK WhatsApp differs from SMS phone, also ping that explicitly
+                    if (!string.Equals(nokWhatsApp, nokPhone, StringComparison.Ordinal))
+                    {
+                        try
+                        {
+                            var waPhone = FormatPhoneForWhatsApp(nokWhatsApp);
+                            var waMsg = $"🚨 *Emergency Alert*\n\nLocation: {location}\nSituation: {nokSummary}\n\nBeing assisted by Uganda Disaster Response.";
+                            await _whatsAppService.Value.SendMessage(waPhone, waMsg);
+                            _logger.LogInformation("📱 WhatsApp (NoK distinct) sent to {Phone}", waPhone);
+                        }
+                        catch (Exception waEx)
+                        {
+                            _logger.LogWarning("NoK distinct-WhatsApp failed: {Error}", waEx.Message);
+                        }
+                    }
+
+                    // Email (always — either user's value or demo default)
+                    try
+                    {
+                        var emailOk = await _emailService.SendEmergencyAlertAsync(
+                            nokEmail, nokName, user.FullName, emergencyType, severity, location, situationDescription);
+                        if (emailOk)
+                        {
+                            nokAction.Description += " + Email";
+                            _logger.LogInformation("📧 NoK email sent to {Email}{Tag}", nokEmail, usingDefaults ? " (demo default)" : "");
+                        }
+                    }
+                    catch (Exception emEx)
+                    {
+                        _logger.LogWarning("NoK email failed: {Error}", emEx.Message);
+                    }
+
+                    actions.Add(nokAction);
+                }
+                catch (Exception nokEx)
+                {
+                    _logger.LogError(nokEx, "Failed to notify Next of Kin");
+                }
+                // ---- end Next of Kin ----
 
                 _logger.LogInformation("✅ AUTO-NOTIFY: Successfully sent alerts to {Count} emergency contacts", actions.Count);
             }
