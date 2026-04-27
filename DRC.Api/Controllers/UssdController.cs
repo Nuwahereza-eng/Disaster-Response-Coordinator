@@ -108,12 +108,10 @@ namespace DRC.Api.Controllers
             if (steps.Length == 1)
             {
                 return Con("What is happening?",
-                    "1. Flood",
-                    "2. Landslide / Earthquake",
-                    "3. Fire",
-                    "4. Medical Emergency",
-                    "5. Violence / Security",
-                    "6. Other");
+                    "1. 🔥 Fire",
+                    "2. 🏥 Medical Emergency",
+                    "3. 🌊 Flood / Landslide",
+                    "4. Other");
             }
 
             if (steps.Length == 2)
@@ -379,9 +377,9 @@ namespace DRC.Api.Controllers
         private string AboutMenu() => End(
             "DIRECO — AI-powered disaster",
             "response coordinator for Uganda.",
-            "Works on WhatsApp, SMS, web,",
-            "and this USSD menu.",
-            "Built for the Africa's Talking",
+            "Works offline via USSD & SMS",
+            "(text FIRE/MED/FLOOD/LAND <place>),",
+            "plus WhatsApp & web.",
             "AI Fest 2026.");
 
         // -------------------------------------------------------------------
@@ -392,12 +390,11 @@ namespace DRC.Api.Controllers
 
         private static (EmergencyType type, string label) MapEmergencyType(string code) => code switch
         {
-            "1" => (EmergencyType.Flood, "Flood"),
-            "2" => (EmergencyType.Earthquake, "Landslide/Earthquake"),
-            "3" => (EmergencyType.Fire, "Fire"),
-            "4" => (EmergencyType.Medical, "Medical Emergency"),
-            "5" => (EmergencyType.Other, "Security incident"),
-            _   => (EmergencyType.Other, "Other emergency")
+            "1" => (EmergencyType.Fire,       "Fire"),
+            "2" => (EmergencyType.Medical,    "Medical Emergency"),
+            "3" => (EmergencyType.Flood,      "Flood / Landslide"),
+            "4" => (EmergencyType.Other,      "Other emergency"),
+            _   => (EmergencyType.Other,      "Other emergency")
         };
 
         private static EmergencySeverity MapSeverity(string code) => code switch
