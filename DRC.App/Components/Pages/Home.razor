@@ -200,21 +200,16 @@
         }
     </div>
 
-    @* ======================= FLOATING SOS BUTTON ======================= *@
-    <button class="sos-fab @(sosConfirming ? "confirming" : "")"
+    @* ======================= FLOATING SOS BUTTON =======================
+       Instant dispatch on first tap. Works offline: the JS path queues to
+       IndexedDB via the service worker and flushes automatically when the
+       network returns. Designed for people who can't type or have no internet. *@
+    <button class="sos-fab"
             @onclick="OnSosClick"
             disabled="@Processing"
-            title="Emergency SOS - one tap to dispatch help">
-        @if (sosConfirming)
-        {
-            <span class="sos-label">Tap again to confirm</span>
-            <span class="sos-countdown">@sosSecondsLeft</span>
-        }
-        else
-        {
-            <i class="bi bi-exclamation-octagon-fill"></i>
-            <span class="sos-label">SOS</span>
-        }
+            title="Emergency SOS — one tap to dispatch help (works offline)">
+        <i class="bi bi-exclamation-octagon-fill"></i>
+        <span class="sos-label">SOS</span>
     </button>
 
     @* ======================= NEARBY HELP MAP ======================= *@

@@ -56,11 +56,6 @@ namespace DRC.App.Components.Pages
         // Enter key handling
         private bool shouldPreventDefault = false;
 
-        // SOS — two-tap confirm pattern (prevents accidental dispatch)
-        private bool sosConfirming = false;
-        private int sosSecondsLeft = 5;
-        private CancellationTokenSource? sosConfirmCts;
-
         // Nearby Help map
         private bool mapCollapsed = false;
         private bool mapHydrated = false;
@@ -454,53 +449,42 @@ namespace DRC.App.Components.Pages
         }
 
         // =========================================================
-        // SOS — one floating button, two-tap confirmation pattern.
-        // 1st tap  → 5-second "tap again to confirm" countdown + haptic.
-        // 2nd tap  → dispatches an emergency with GPS to the agent.
-        // No tap   → automatically cancels after 5s.
+        // SOS \u2014 instant one-tap dispatch.
+        //
+        // Designed for the worst case: a panicking user, no time to type,
+        // possibly no internet. We do TWO things in parallel on a single tap:
+        //
+        //   1. JS path (window.drcPwa.fireSos) \u2014 POSTs to /api/sos directly.
+        //      If offline, it queues to IndexedDB and the service worker
+        //      flushes it when the network returns. This is the offline-first
+        //      lifeline and works even if the Blazor circuit is dead.
+        //   2. Agent path (CallAgent) \u2014 best-effort, so the chat shows what
+        //      happened and the LLM can coordinate follow-up actions
+        //      (notify next-of-kin, find nearby facilities, etc.).
+        //
+        // No 2-tap confirmation, no countdown. Accidental taps are a far
+        // smaller cost than a missed real emergency.
         // =========================================================
         private async Task OnSosClick()
         {
             if (Processing) return;
 
-            // Best-effort haptic feedback (mobile browsers)
+            // Best-effort haptic feedback on mobile so the user knows it fired.
             try { await JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { /* ignore */ }
 
-            if (!sosConfirming)
-            {
-                sosConfirming = true;
-                sosSecondsLeft = 5;
-                sosConfirmCts?.Cancel();
-                sosConfirmCts = new CancellationTokenSource();
-                _ = RunSosCountdown(sosConfirmCts.Token);
-                StateHasChanged();
-                return;
-            }
-
-            // Second tap: dispatch emergency
-            sosConfirmCts?.Cancel();
-            sosConfirming = false;
-            StateHasChanged();
-            await DispatchSosAsync();
-        }
-
-        private async Task RunSosCountdown(CancellationToken ct)
-        {
+            // 1. Fire-and-forget the offline-capable JS path. Don't await \u2014 we
+            //    don't want a slow API to block the agent message below, and
+            //    drcPwa handles its own success/queue toasts.
             try
             {
-                while (sosSecondsLeft > 0 && !ct.IsCancellationRequested)
-                {
-                    await Task.Delay(1000, ct);
-                    sosSecondsLeft--;
-                    await InvokeAsync(StateHasChanged);
-                }
-                if (!ct.IsCancellationRequested)
-                {
-                    sosConfirming = false;
-                    await InvokeAsync(StateHasChanged);
-                }
+                _ = JSRuntime.InvokeVoidAsync("drcPwa.fireSos", "SOS").AsTask();
             }
-            catch (TaskCanceledException) { /* user tapped again or navigated */ }
+            catch { /* ignore \u2014 agent path is the fallback */ }
+
+            // 2. Tell the agent so the chat captures the incident and the LLM
+            //    can take follow-up actions. Best-effort \u2014 will fail silently
+            //    if there's no connectivity (the JS path above already queued).
+            await DispatchSosAsync();
         }
 
         private async Task DispatchSosAsync()
@@ -512,7 +496,7 @@ namespace DRC.App.Components.Pages
                 ? $" My GPS coordinates are {userLatitude:F5}, {userLongitude:F5}."
                 : "";
 
-            prompt = $"🚨 SOS — I need immediate emergency help.{locationText} Please dispatch the closest responders now and notify my emergency contacts.";
+            prompt = $"\ud83d\udea8 SOS \u2014 I need immediate emergency help.{locationText} Please dispatch the closest responders now and notify my emergency contacts.";
             await CallAgent();
         }
     }

@@ -174,11 +174,8 @@
       b.addEventListener('click', async () => {
         const type = b.dataset.type;
         menu.hidden = true; main.classList.remove('open');
-        const ok = window.confirm(
-          `Send a ${type} emergency report now?\n\n` +
-          `Your location will be attached if available. You will get an SMS / WhatsApp confirmation.`
-        );
-        if (!ok) return;
+        // Instant dispatch — no confirm dialog. People in real emergencies
+        // can't type or tap twice; offline queue will retry if it fails.
         await fireSos(type);
       });
     });
