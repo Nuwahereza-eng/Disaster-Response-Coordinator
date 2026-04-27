@@ -306,22 +306,36 @@
             history ??= new UserHistoryDto();
             emergencyContacts ??= new List<EmergencyContactDto>();
             isInitializing = false;
+
+            // Fast path: restore cached auth from localStorage (JS interop only, no network).
+            await UserService.InitializeAsync();
             StateHasChanged();
 
-            // Best-effort: try to load real data from the API in the background.
-            try
+            // Background: ensure demo-login if needed, then refresh from the API.
+            // Fire-and-forget so a cold-starting backend never freezes the UI.
+            _ = Task.Run(async () =>
             {
-                await UserService.InitializeAsync();
-                var real = await UserService.GetProfileAsync();
-                if (real != null) profile = real;
-                var contacts = await UserService.GetEmergencyContactsAsync();
-                if (contacts != null) emergencyContacts = contacts;
-                var hist = await UserService.GetHistoryAsync();
-                if (hist != null) history = hist;
-            }
-            catch { /* keep demo data */ }
+                try
+                {
+                    if (!UserService.IsAuthenticated)
+                    {
+                        await UserService.EnsureDemoLoggedInAsync();
+                    }
 
-            StateHasChanged();
+                    var real = await UserService.GetProfileAsync();
+                    var contacts = await UserService.GetEmergencyContactsAsync();
+                    var hist = await UserService.GetHistoryAsync();
+
+                    await InvokeAsync(() =>
+                    {
+                        if (real != null) profile = real;
+                        if (contacts != null) emergencyContacts = contacts;
+                        if (hist != null) history = hist;
+                        StateHasChanged();
+                    });
+                }
+                catch { /* keep demo data */ }
+            });
         }
     }
 

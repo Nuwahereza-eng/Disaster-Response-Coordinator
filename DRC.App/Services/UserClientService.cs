@@ -17,6 +17,17 @@ namespace DRC.App.Services
             _jsRuntime = jsRuntime;
         }
 
+        // Single demo account used everywhere so Home and Profile never disagree about
+        // who is logged in. Must match the user seeded in DRC.Api/Program.cs.
+        private const string DemoEmail = "drc@africastalking.ug";
+        private const string DemoPassword = "Judge2026!";
+
+        /// <summary>
+        /// Restore auth state from localStorage. Fast and non-blocking — does NOT call the API.
+        /// Callers that need a guaranteed signed-in session should also call
+        /// <see cref="EnsureDemoLoggedInAsync"/> (typically as a background task so the UI
+        /// stays responsive on slow / cold-starting servers).
+        /// </summary>
         public async Task InitializeAsync()
         {
             if (_initialized) return;
@@ -45,19 +56,24 @@ namespace DRC.App.Services
             }
 
             _initialized = true;
+        }
 
-            // Demo-mode auto-login: no accounts needed during pitching.
-            // Silently sign in as the seeded admin user so profile / NoK / history just work.
-            if (string.IsNullOrEmpty(_authToken))
+        /// <summary>
+        /// Demo-mode auto-login. Idempotent — no-op when already authenticated.
+        /// Designed to be called from a background task: never throws and returns
+        /// true on success / false on any failure (cold-start, network, etc.).
+        /// </summary>
+        public async Task<bool> EnsureDemoLoggedInAsync()
+        {
+            if (IsAuthenticated) return true;
+            try
             {
-                try
-                {
-                    await LoginAsync("admin@drc.ug", "Admin123!");
-                }
-                catch
-                {
-                    // Best-effort — if the API is down, UI will still render.
-                }
+                var result = await LoginAsync(DemoEmail, DemoPassword);
+                return result != null;
+            }
+            catch
+            {
+                return false;
             }
         }
 

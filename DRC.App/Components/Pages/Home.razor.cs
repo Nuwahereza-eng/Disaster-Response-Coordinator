@@ -77,27 +77,42 @@ namespace DRC.App.Components.Pages
         {
             if (firstRender)
             {
-                // Initialize auth state from browser storage (requires JS)
+                // Fast path: restore any cached auth from localStorage. This is just JS interop \u2014
+                // no network call \u2014 so it doesn't freeze the UI on a cold-starting backend.
                 await UserClient.InitializeAsync();
-                
-                // Check if user is authenticated and sync auth token to agent client
+
                 if (UserClient.IsAuthenticated)
                 {
                     isAuthenticated = true;
                     userName = UserClient.CurrentUser?.FullName;
                     userPhone = UserClient.CurrentUser?.Phone;
-                    // Sync the auth token to AgentClientService so sessions are linked to the user
                     AgentClient.SetAuthToken(UserClient.AuthToken);
-                    
-                    // Load chat history
-                    await LoadChatHistoryAsync();
                 }
-                else
+                StateHasChanged();
+
+                // Everything below is fire-and-forget so the chat UI is interactive immediately.
+                // Auto-login + history load run in the background; when they finish we re-render.
+                _ = Task.Run(async () =>
                 {
-                    // Auto-login with demo account for seamless experience
-                    await AutoLoginAsync();
-                }
-                
+                    if (!UserClient.IsAuthenticated)
+                    {
+                        await UserClient.EnsureDemoLoggedInAsync();
+                    }
+
+                    if (UserClient.IsAuthenticated)
+                    {
+                        await InvokeAsync(() =>
+                        {
+                            isAuthenticated = true;
+                            userName = UserClient.CurrentUser?.FullName;
+                            userPhone = UserClient.CurrentUser?.Phone;
+                            AgentClient.SetAuthToken(UserClient.AuthToken);
+                            StateHasChanged();
+                        });
+                        await LoadChatHistoryAsync();
+                    }
+                });
+
                 // CRITICAL: Request user location immediately for emergency response
                 await RequestUserLocationAsync();
                 StateHasChanged();
