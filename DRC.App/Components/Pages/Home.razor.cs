@@ -56,6 +56,11 @@ namespace DRC.App.Components.Pages
         // Enter key handling
         private bool shouldPreventDefault = false;
 
+        // SOS — two-tap confirm pattern (prevents accidental dispatch)
+        private bool sosConfirming = false;
+        private int sosSecondsLeft = 5;
+        private CancellationTokenSource? sosConfirmCts;
+
         // Nearby Help map
         private bool mapCollapsed = false;
         private bool mapHydrated = false;
@@ -469,22 +474,55 @@ namespace DRC.App.Components.Pages
         {
             if (Processing) return;
 
-            // Best-effort haptic feedback on mobile so the user knows it fired.
+            // Best-effort haptic feedback (mobile browsers).
             try { await JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { /* ignore */ }
 
-            // 1. Fire-and-forget the offline-capable JS path. Don't await \u2014 we
-            //    don't want a slow API to block the agent message below, and
-            //    drcPwa handles its own success/queue toasts.
+            // First tap: arm the 5-second confirmation window.
+            if (!sosConfirming)
+            {
+                sosConfirming = true;
+                sosSecondsLeft = 5;
+                sosConfirmCts?.Cancel();
+                sosConfirmCts = new CancellationTokenSource();
+                _ = RunSosCountdown(sosConfirmCts.Token);
+                StateHasChanged();
+                return;
+            }
+
+            // Second tap within the window: dispatch.
+            sosConfirmCts?.Cancel();
+            sosConfirming = false;
+            StateHasChanged();
+
+            // Offline-capable JS path. Fire-and-forget so a slow API doesn't
+            // block the agent message; drcPwa handles its own toasts and
+            // queues to IndexedDB if there's no connectivity.
             try
             {
                 _ = JSRuntime.InvokeVoidAsync("drcPwa.fireSos", "SOS").AsTask();
             }
-            catch { /* ignore \u2014 agent path is the fallback */ }
+            catch { /* ignore — agent path is the fallback */ }
 
-            // 2. Tell the agent so the chat captures the incident and the LLM
-            //    can take follow-up actions. Best-effort \u2014 will fail silently
-            //    if there's no connectivity (the JS path above already queued).
             await DispatchSosAsync();
+        }
+
+        private async Task RunSosCountdown(CancellationToken ct)
+        {
+            try
+            {
+                while (sosSecondsLeft > 0 && !ct.IsCancellationRequested)
+                {
+                    await Task.Delay(1000, ct);
+                    sosSecondsLeft--;
+                    await InvokeAsync(StateHasChanged);
+                }
+                if (!ct.IsCancellationRequested)
+                {
+                    sosConfirming = false;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch (TaskCanceledException) { /* user tapped again or navigated */ }
         }
 
         private async Task DispatchSosAsync()
