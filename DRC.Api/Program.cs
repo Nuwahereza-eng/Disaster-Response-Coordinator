@@ -3,7 +3,11 @@ using DRC.Api.Data;
 using DRC.Api.Data.Entities;
 using DRC.Api.Interfaces;
 using DRC.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 using ViaCep;
 using WhatsappBusiness.CloudApi.Configurations;
 using WhatsappBusiness.CloudApi.Extensions;
@@ -141,6 +145,52 @@ namespace DRC.Api
                         .AllowCredentials();
                 });
             });
+
+            // JWT bearer authentication so [Authorize] endpoints (and User.FindFirst(...))
+            // actually see the claims emitted by AuthService.GenerateJwtToken.
+            // Without this, /api/Agent/ChatHistory etc. return Unauthorized even with a
+            // valid token in the Authorization header.
+            var jwtKey      = builder.Configuration["Jwt:Key"]      ?? "DisasterResponseCoordinatorSecretKey2024!@#$%";
+            var jwtIssuer   = builder.Configuration["Jwt:Issuer"]   ?? "DRC.Api";
+            var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "DRC.App";
+
+            // Keep raw 'sub' claim instead of remapping to ClaimTypes.NameIdentifier
+            // so controllers reading either name continue to work.
+            JwtSecurityTokenHandler.DefaultMapInboundClaims = true;
+
+            builder.Services
+                .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+                .AddJwtBearer(options =>
+                {
+                    options.RequireHttpsMetadata = false;
+                    options.SaveToken = true;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer           = true,
+                        ValidateAudience         = true,
+                        ValidateLifetime         = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer              = jwtIssuer,
+                        ValidAudience            = jwtAudience,
+                        IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                        ClockSkew                = TimeSpan.FromMinutes(2)
+                    };
+                    // Allow SignalR/WebSocket to receive the token via query string ?access_token=...
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = ctx =>
+                        {
+                            var accessToken = ctx.Request.Query["access_token"];
+                            var path = ctx.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                            {
+                                ctx.Token = accessToken;
+                            }
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
+            builder.Services.AddAuthorization();
 
             var app = builder.Build();
 
@@ -525,6 +575,9 @@ namespace DRC.Api
             app.UseHttpsRedirection();
 
             app.UseCors();
+
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             // Auth middleware removed — endpoints are open
 
