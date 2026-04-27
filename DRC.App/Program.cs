@@ -33,6 +33,9 @@ namespace DRC.App
             
             Console.WriteLine($"API URL configured as: {apiUrl}");
 
+            // Expose API base URL to the PWA service worker and pwa.js via window.DRC_API
+            DRC.App.Components.App.ApiBaseUrl = apiUrl;
+
             builder.Services.AddHttpClient<AgentClientService>(client =>
             {
                 // Use localhost for local development, "http://api" for Docker/Aspire

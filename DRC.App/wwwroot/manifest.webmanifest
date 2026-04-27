@@ -1,0 +1,42 @@
+{
+  "name": "DIRECO — Disaster Response Coordinator",
+  "short_name": "DIRECO",
+  "description": "Offline-capable emergency reporting for Uganda. Tap SOS even with no signal — your report is queued and sent the moment you are back online.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#dc2626",
+  "background_color": "#0f172a",
+  "categories": ["safety", "utilities", "lifestyle"],
+  "lang": "en-UG",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icons/icon.svg", "sizes": "256x256", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icons/icon.svg", "sizes": "384x384", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "icons/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fire",
+      "short_name": "Fire",
+      "description": "Report a fire",
+      "url": "/?sos=FIRE",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Medical",
+      "short_name": "Medical",
+      "description": "Report a medical emergency",
+      "url": "/?sos=MEDICAL",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Flood / Landslide",
+      "short_name": "Flood",
+      "description": "Report a flood or landslide",
+      "url": "/?sos=FLOOD",
+      "icons": [{ "src": "icons/icon.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    }
+  ]
+}
