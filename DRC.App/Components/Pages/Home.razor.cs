@@ -131,6 +131,10 @@ namespace DRC.App.Components.Pages
 
                 // Fire-and-forget: populate Nearby Help map once we have coords
                 _ = HydrateMapAsync();
+
+                // Did the user arrive here via the floating SOS menu (Landslide / Flood / Fire / etc.)?
+                // If so, kick off a chat about that specific emergency immediately.
+                _ = HandleEmergencyTypeFromUrlAsync();
             }
             
             try
@@ -516,22 +520,86 @@ namespace DRC.App.Components.Pages
         }
 
         // =========================================================
-        // SOS \u2014 instant one-tap dispatch.
-        //
-        // Designed for the worst case: a panicking user, no time to type,
-        // possibly no internet. We do TWO things in parallel on a single tap:
-        //
-        //   1. JS path (window.drcPwa.fireSos) \u2014 POSTs to /api/sos directly.
-        //      If offline, it queues to IndexedDB and the service worker
-        //      flushes it when the network returns. This is the offline-first
-        //      lifeline and works even if the Blazor circuit is dead.
-        //   2. Agent path (CallAgent) \u2014 best-effort, so the chat shows what
-        //      happened and the LLM can coordinate follow-up actions
-        //      (notify next-of-kin, find nearby facilities, etc.).
-        //
-        // No 2-tap confirmation, no countdown. Accidental taps are a far
-        // smaller cost than a missed real emergency.
+        // Floating SOS menu \u2014 user picked Landslide / Flood / Fire / etc.
+        // The /?emergency_type=X query string lands them on Home, and we
+        // open the chat already filled with the right emergency context.
         // =========================================================
+        private async Task HandleEmergencyTypeFromUrlAsync()
+        {
+            try
+            {
+                var uri = new Uri(NavigationManager.Uri);
+                var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                var raw = qs["emergency_type"];
+                if (string.IsNullOrWhiteSpace(raw)) return;
+
+                var type = raw.Trim().ToUpperInvariant();
+                var (label, userPrompt, tip) = type switch
+                {
+                    "LANDSLIDE" => ("Landslide",
+                        "\ud83d\udea8 SOS \u2014 there's a landslide in my area. People may be trapped under mud and debris. We need urgent rescue.",
+                        "If you're trapped: tap on something hard so rescuers can hear you, conserve phone battery, and stay calm. Do NOT try to dig yourself out \u2014 wait for trained responders."),
+                    "FLOOD" => ("Flood",
+                        "\ud83d\udea8 SOS \u2014 there's flooding in my area, water is rising fast. We need help and possibly evacuation.",
+                        "Move to the highest ground you can reach. Do not walk or drive through moving water \u2014 even 15 cm can sweep you off your feet."),
+                    "FIRE" => ("Fire",
+                        "\ud83d\udea8 SOS \u2014 there's a fire emergency at my location. We need fire brigade and medical help immediately.",
+                        "Get out, stay out, stay low under smoke. Close doors behind you to slow the spread. If trapped, seal door cracks with cloth and signal from a window."),
+                    "MEDICAL" => ("Medical",
+                        "\ud83d\udea8 SOS \u2014 I have a medical emergency right now. We need an ambulance immediately.",
+                        "Stay still, keep the patient lying down if conscious, do not give food or drink. Apply firm pressure to any bleeding wound."),
+                    "OTHER" => ("Emergency",
+                        "\ud83d\udea8 SOS \u2014 I have an emergency right now and need help immediately.",
+                        "Stay where you are if it's safe. Conserve phone battery. Help is being coordinated."),
+                    _ => (type, $"\ud83d\udea8 SOS \u2014 {type} emergency. We need urgent help.", "Stay calm and stay where you are if it's safe.")
+                };
+
+                // Make sure GPS is fresh.
+                await RequestUserLocationAsync();
+                var locationText = (userLatitude.HasValue && userLongitude.HasValue)
+                    ? $" My GPS coordinates are {userLatitude:F5}, {userLongitude:F5}."
+                    : " (location unavailable \u2014 please share)";
+
+                var fullPrompt = userPrompt + locationText + " Please dispatch the closest responders and notify my emergency contacts.";
+
+                // 1. User message in chat \u2014 instantly visible.
+                messages.Add(new MessageSave { Prompt = fullPrompt, Role = 1 });
+
+                // 2. Immediate Direco ack so the user sees action before the LLM round-trip.
+                var ackHtml =
+                    $"<div class='agent-actions'><strong>\ud83d\udea8 {label} emergency received \u2014 dispatching now\u2026</strong>" +
+                    "<ul>" +
+                    "<li>\ud83d\udcdd Logged your emergency with GPS</li>" +
+                    "<li>\ud83d\udcde Notifying your next of kin (SMS + WhatsApp + email)</li>" +
+                    "<li>\ud83d\ude91 Alerting closest responders</li>" +
+                    "<li>\ud83d\udcf6 Queued offline so it will deliver even if your network drops</li>" +
+                    "</ul></div>" +
+                    $"<p><strong>Stay where you are. Help is being coordinated.</strong> {tip}</p>";
+                messages.Add(new MessageSave { Prompt = ackHtml, Role = 0 });
+
+                isEmergency = true;
+                emergencySeverity = "Critical";
+
+                StateHasChanged();
+                try { await JSRuntime.InvokeVoidAsync("ScrollToBottom", "chatcontainer"); } catch { }
+
+                // 3. Offline-capable JS dispatch (queues to IndexedDB if no network).
+                try { _ = JSRuntime.InvokeVoidAsync("drcPwa.fireSos", type).AsTask(); } catch { }
+
+                // 4. Strip the query string so a page refresh doesn't re-fire,
+                //    then call the agent for the real follow-up actions.
+                NavigationManager.NavigateTo("/", forceLoad: false, replace: true);
+                prompt = fullPrompt;
+                await CallAgent(addUserMessage: false);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"HandleEmergencyTypeFromUrl failed: {ex.Message}");
+            }
+        }
+
+        // =========================================================
+        // SOS \u2014 instant one-tap dispatch.
         private async Task OnSosClick()
         {
             if (Processing) return;

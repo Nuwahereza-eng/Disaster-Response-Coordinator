@@ -146,7 +146,19 @@
   }
 
   // -------- Floating SOS button --------
+  // Routes that should NOT show the floating SOS FAB. Admin dashboards already
+  // have their own emergency tools; an extra red button is just clutter.
+  const SOS_HIDDEN_PREFIXES = ['/admin'];
+  function shouldShowFab() {
+    const p = (location.pathname || '/').toLowerCase();
+    return !SOS_HIDDEN_PREFIXES.some(prefix => p === prefix || p.startsWith(prefix + '/'));
+  }
+  function removeFab() {
+    const el = document.getElementById('drc-sos-fab');
+    if (el) el.remove();
+  }
   function injectFab() {
+    if (!shouldShowFab()) { removeFab(); return; }
     if (document.getElementById('drc-sos-fab')) return;
     const wrap = document.createElement('div');
     wrap.id = 'drc-sos-fab';
@@ -157,9 +169,11 @@
         <span class="drc-sos-badge" id="drc-outbox-badge" hidden>0</span>
       </button>
       <div class="drc-sos-menu" hidden>
-        <button data-type="FIRE"     class="drc-sos-opt drc-sos-fire">🔥 Fire</button>
-        <button data-type="MEDICAL"  class="drc-sos-opt drc-sos-med">🏥 Medical</button>
-        <button data-type="FLOOD"    class="drc-sos-opt drc-sos-flood">🌊 Flood / Landslide</button>
+        <button data-type="LANDSLIDE" class="drc-sos-opt drc-sos-flood">⛰️ Landslide</button>
+        <button data-type="FLOOD"     class="drc-sos-opt drc-sos-flood">🌊 Flood</button>
+        <button data-type="FIRE"      class="drc-sos-opt drc-sos-fire">🔥 Fire</button>
+        <button data-type="MEDICAL"   class="drc-sos-opt drc-sos-med">🏥 Medical</button>
+        <button data-type="OTHER"     class="drc-sos-opt">🚨 Other emergency</button>
       </div>
     `;
     document.body.appendChild(wrap);
@@ -171,21 +185,25 @@
       main.classList.toggle('open', !menu.hidden);
     });
     wrap.querySelectorAll('.drc-sos-opt').forEach((b) => {
-      b.addEventListener('click', async () => {
+      b.addEventListener('click', () => {
         const type = b.dataset.type;
         menu.hidden = true; main.classList.remove('open');
-        // Confirm to prevent accidental dispatch (mirrors the 5s tap-to-confirm
-        // on the main red button). Real emergencies can still tap OK quickly.
-        const ok = window.confirm(
-          `Send a ${type} emergency report now?\n\n` +
-          `Your location will be attached if available. You will get an SMS / WhatsApp confirmation.`
-        );
-        if (!ok) return;
-        await fireSos(type);
+        // Take the user straight into the chat. Home.razor reads the
+        // ?emergency_type= query param on load and asks the agent for help
+        // with that specific disaster type, with the user's GPS attached.
+        // The chat UI shows progress immediately — no popup, no wait.
+        const target = `/?emergency_type=${encodeURIComponent(type)}&t=${Date.now()}`;
+        if (location.pathname === '/' || location.pathname === '/index.html') {
+          // Already on Home — full reload so OnAfterRenderAsync re-runs and
+          // picks up the new query string.
+          location.href = target;
+        } else {
+          location.href = target;
+        }
       });
     });
 
-    // Auto-launch via shortcut: /?sos=FIRE
+    // Auto-launch via shortcut: /?sos=FIRE  (legacy direct-fire path)
     try {
       const params = new URLSearchParams(location.search);
       const auto = params.get('sos');
@@ -235,4 +253,14 @@
   } else {
     injectFab();
   }
+
+  // Blazor navigation may swap pages without a full reload. Re-evaluate
+  // whether the FAB should be shown whenever the URL changes.
+  let lastPath = location.pathname;
+  setInterval(() => {
+    if (location.pathname !== lastPath) {
+      lastPath = location.pathname;
+      injectFab();
+    }
+  }, 500);
 })();
