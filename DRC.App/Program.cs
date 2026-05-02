@@ -1,6 +1,7 @@
 using DRC.App.Components;
 using DRC.App.Services;
 using Microsoft.AspNetCore.Hosting.StaticWebAssets;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace DRC.App
 {
@@ -10,6 +11,16 @@ namespace DRC.App
         {
             var builder = WebApplication.CreateBuilder(args);
             builder.AddServiceDefaults();
+
+            // Render / Fly / Railway terminate SSL at the load balancer and forward as HTTP.
+            // Without this, Blazor circuit cookies are set without Secure flag and the
+            // browser (on HTTPS) rejects them -> "The circuit failed to initialize".
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
             
             // Only load static web assets manifest in development (doesn't exist in published builds)
             if (builder.Environment.IsDevelopment())
@@ -87,6 +98,10 @@ namespace DRC.App
                 .AddInteractiveServerComponents();
 
             var app = builder.Build();
+
+            // Honour X-Forwarded-Proto from Render's load balancer FIRST so the rest of
+            // the pipeline (cookies, antiforgery, redirect, SignalR) sees scheme=https.
+            app.UseForwardedHeaders();
 
             app.MapDefaultEndpoints();
 
