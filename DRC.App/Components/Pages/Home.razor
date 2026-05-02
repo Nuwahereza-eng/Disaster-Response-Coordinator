@@ -16,7 +16,17 @@
             {
                 <div class="sidebar-loading">
                     <div class="spinner-small"></div>
-                    <span>Loading...</span>
+                    <span>Loading…</span>
+                </div>
+            }
+            else if (historyError != null)
+            {
+                <div class="no-sessions" style="color:#b91c1c">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>@historyError</span>
+                    <button class="btn btn-sm btn-secondary" style="margin-top:0.5rem" @onclick="LoadChatHistoryAsync">
+                        <i class="bi bi-arrow-clockwise"></i> Retry
+                    </button>
                 </div>
             }
             else if (chatSessions.Any())

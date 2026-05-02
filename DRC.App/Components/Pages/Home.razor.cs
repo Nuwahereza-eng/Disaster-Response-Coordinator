@@ -51,6 +51,7 @@ namespace DRC.App.Components.Pages
         private bool sidebarOpen = true;
         private bool loadingHistory = false;
         private bool viewingHistory = false;
+        private string? historyError = null;
         private List<ChatSessionSummary> chatSessions = new();
         
         // Enter key handling
@@ -159,10 +160,11 @@ namespace DRC.App.Components.Pages
         private async Task LoadChatHistoryAsync()
         {
             if (!isAuthenticated) return;
-            
+
             loadingHistory = true;
-            StateHasChanged();
-            
+            historyError = null;
+            await InvokeAsync(StateHasChanged);
+
             try
             {
                 var history = await AgentClient.GetChatHistoryAsync();
@@ -171,14 +173,20 @@ namespace DRC.App.Components.Pages
                     chatSessions = history.Sessions;
                 }
             }
+            catch (TimeoutException)
+            {
+                historyError = "Server is slow or unreachable. The database may be down.";
+                Console.WriteLine("Chat history load timed out.");
+            }
             catch (Exception ex)
             {
+                historyError = "Could not load conversations.";
                 Console.WriteLine($"Error loading chat history: {ex.Message}");
             }
             finally
             {
                 loadingHistory = false;
-                StateHasChanged();
+                await InvokeAsync(StateHasChanged);
             }
         }
 

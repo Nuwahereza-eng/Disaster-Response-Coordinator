@@ -112,21 +112,29 @@ namespace DRC.App.Services
         public async Task<ChatHistoryResponse?> GetChatHistoryAsync()
         {
             if (!IsAuthenticated) return null;
-            
+
+            // Hard 10s cap. The shared HttpClient is configured with a 5 min timeout
+            // for slow LLM responses, but a chat-history fetch must NEVER hang the
+            // sidebar spinner that long — if the DB is down the user wants to know
+            // immediately, not in 5 minutes.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             try
             {
-                var response = await _httpClient.GetAsync("api/Agent/ChatHistory");
-                if (!response.IsSuccessStatusCode) return null;
-                
-                var content = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<ChatHistoryResponse>(content, new JsonSerializerOptions 
-                { 
-                    PropertyNameCaseInsensitive = true 
+                var response = await _httpClient.GetAsync("api/Agent/ChatHistory", cts.Token);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException($"ChatHistory returned {(int)response.StatusCode} {response.StatusCode}");
+                }
+
+                var content = await response.Content.ReadAsStringAsync(cts.Token);
+                return JsonSerializer.Deserialize<ChatHistoryResponse>(content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
                 });
             }
-            catch
+            catch (OperationCanceledException) when (cts.IsCancellationRequested)
             {
-                return null;
+                throw new TimeoutException("Chat history request timed out after 10s.");
             }
         }
 
