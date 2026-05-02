@@ -328,7 +328,19 @@
 
                     await InvokeAsync(() =>
                     {
-                        if (real != null) profile = real;
+                        // Keep Peter Nuwahereza as the visible identity (FullName/Email/Phone),
+                        // but pull next-of-kin fields from the API since those are user-edited
+                        // and need to round-trip. Same for contacts and history.
+                        if (real != null && profile != null)
+                        {
+                            profile.NextOfKinName = real.NextOfKinName;
+                            profile.NextOfKinPhone = real.NextOfKinPhone;
+                            profile.NextOfKinWhatsApp = real.NextOfKinWhatsApp;
+                            profile.NextOfKinEmail = real.NextOfKinEmail;
+                            profile.Address = real.Address;
+                            profile.Latitude = real.Latitude;
+                            profile.Longitude = real.Longitude;
+                        }
                         if (contacts != null) emergencyContacts = contacts;
                         if (hist != null) history = hist;
                         StateHasChanged();
