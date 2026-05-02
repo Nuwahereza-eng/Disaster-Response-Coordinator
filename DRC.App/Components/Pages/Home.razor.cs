@@ -98,15 +98,17 @@ namespace DRC.App.Components.Pages
                 StateHasChanged();
 
                 // Everything below is fire-and-forget so the chat UI is interactive immediately.
-                // Auto-login + history load run in the background; when they finish we re-render.
+                // In demo mode we ALWAYS run a fresh login on cold start: the cached
+                // localStorage token may be signed for a user that no longer exists
+                // after a DB reset (Render free Postgres expiry, Neon migration, etc.).
+                // A 200ms login is much better than 401s breaking the sidebar.
                 _ = Task.Run(async () =>
                 {
-                    if (!UserClient.IsAuthenticated)
-                    {
-                        await UserClient.EnsureDemoLoggedInAsync();
-                    }
+                    // Force fresh login — wipes stale token, gets a guaranteed-valid one.
+                    await UserClient.LogoutAsync();
+                    var ok = await UserClient.EnsureDemoLoggedInAsync();
 
-                    if (UserClient.IsAuthenticated)
+                    if (ok && UserClient.IsAuthenticated)
                     {
                         await InvokeAsync(() =>
                         {
@@ -116,6 +118,10 @@ namespace DRC.App.Components.Pages
                             StateHasChanged();
                         });
                         await LoadChatHistoryAsync();
+                    }
+                    else
+                    {
+                        Console.WriteLine("Demo login failed on cold start — backend may be waking up.");
                     }
                 });
 
