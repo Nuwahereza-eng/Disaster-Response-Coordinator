@@ -78,6 +78,10 @@ namespace DRC.App
             // Real-time hub client (pushes emergency events from the API)
             builder.Services.AddScoped<LiveHubClient>();
 
+            // Surface circuit lifecycle events in Render logs so we can diagnose
+            // "An unhandled error has occurred" beyond the generic browser message.
+            builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, LoggingCircuitHandler>();
+
             // Configure Blazor Server circuit options for longer AI response times
             builder.Services.AddServerSideBlazor()
                 .AddCircuitOptions(options =>

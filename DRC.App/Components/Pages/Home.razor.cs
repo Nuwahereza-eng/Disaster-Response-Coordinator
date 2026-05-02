@@ -178,6 +178,38 @@ namespace DRC.App.Components.Pages
                 historyError = "Server is slow or unreachable. The database may be down.";
                 Console.WriteLine("Chat history load timed out.");
             }
+            catch (HttpRequestException ex) when (ex.Message.Contains("401"))
+            {
+                // Stale JWT in localStorage (e.g. token signed for a user that no
+                // longer exists after a DB reset). Wipe it, force a fresh demo
+                // login, then retry once. This makes the demo bullet-proof against
+                // 'judge opened the site, can't see anything' bugs after redeploy.
+                Console.WriteLine("Chat history 401 — clearing stale token and re-authenticating.");
+                try
+                {
+                    await UserClient.LogoutAsync();
+                    var ok = await UserClient.EnsureDemoLoggedInAsync();
+                    if (ok)
+                    {
+                        AgentClient.SetAuthToken(UserClient.AuthToken!);
+                        var history = await AgentClient.GetChatHistoryAsync();
+                        if (history != null)
+                        {
+                            chatSessions = history.Sessions;
+                            historyError = null;
+                        }
+                    }
+                    else
+                    {
+                        historyError = "Could not load conversations.";
+                    }
+                }
+                catch (Exception retryEx)
+                {
+                    historyError = "Could not load conversations.";
+                    Console.WriteLine($"Re-auth retry failed: {retryEx.Message}");
+                }
+            }
             catch (Exception ex)
             {
                 historyError = "Could not load conversations.";
