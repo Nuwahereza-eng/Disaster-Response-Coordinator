@@ -91,10 +91,8 @@ namespace DRC.App.Components.Pages
 
                 if (UserClient.IsAuthenticated)
                 {
-                    // NOTE: We deliberately do NOT overwrite userName/userPhone with the
-                    // API's seeded identity ("AT Judge"). The Peter Nuwahereza identity
-                    // is the demo persona shown to judges; the API account is just the
-                    // backing JWT used to call protected endpoints.
+                    userName = UserClient.CurrentUser?.FullName ?? userName;
+                    userPhone = UserClient.CurrentUser?.Phone ?? userPhone;
                     AgentClient.SetAuthToken(UserClient.AuthToken);
                 }
                 StateHasChanged();
@@ -114,8 +112,8 @@ namespace DRC.App.Components.Pages
                     {
                         await InvokeAsync(() =>
                         {
-                            // Keep Peter as the displayed identity — only sync the
-                            // auth token so the agent sees an authenticated session.
+                            userName = UserClient.CurrentUser?.FullName ?? userName;
+                            userPhone = UserClient.CurrentUser?.Phone ?? userPhone;
                             AgentClient.SetAuthToken(UserClient.AuthToken);
                             StateHasChanged();
                         });

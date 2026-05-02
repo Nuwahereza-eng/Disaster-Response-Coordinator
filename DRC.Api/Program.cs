@@ -298,7 +298,7 @@ namespace DRC.Api
                 {
                     var judgeAccounts = new[]
                     {
-                        ("drc@africastalking.ug", "AT Judge", "+256701000001"),
+                        ("drc@africastalking.ug", "Peter Nuwahereza", "+256779081600"),
                     };
                     var judgePassword = "Judge2026!";
 
@@ -318,22 +318,24 @@ namespace DRC.Api
                                 CreatedAt = DateTime.UtcNow
                             };
                             db.Users.Add(judgeUser);
-                            Console.WriteLine($"[OK] Judge user created: {email} / {judgePassword}");
+                            Console.WriteLine($"[OK] Demo user created: {email} / {judgePassword}");
                         }
                         else
                         {
-                            // Always reset judge password on startup to ensure correct credentials
+                            // Always reset on startup so the seeded persona is canonical:
+                            // Peter Nuwahereza, not the legacy "AT Judge" identity.
                             existingJudge.PasswordHash = BCrypt.Net.BCrypt.HashPassword(judgePassword);
                             existingJudge.FullName = name;
+                            existingJudge.Phone = phone;
                             existingJudge.IsActive = true;
-                            Console.WriteLine($"[OK] Judge user password reset: {email} / {judgePassword}");
+                            Console.WriteLine($"[OK] Demo user updated: {email} / {name}");
                         }
                     }
                     db.SaveChanges();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Note: Judge user seeding: {ex.Message}");
+                    Console.WriteLine($"Note: Demo user seeding: {ex.Message}");
                 }
 
                 // Seed default facilities for Uganda
