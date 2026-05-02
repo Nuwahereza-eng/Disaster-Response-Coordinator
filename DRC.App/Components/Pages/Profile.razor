@@ -409,6 +409,10 @@
     {
         if (!string.IsNullOrEmpty(newContactName) && !string.IsNullOrEmpty(newContactPhone) && !string.IsNullOrEmpty(newContactRelationship))
         {
+            if (!UserService.IsAuthenticated)
+            {
+                await UserService.EnsureDemoLoggedInAsync();
+            }
             await UserService.AddEmergencyContactAsync(
                 newContactName, 
                 newContactPhone, 
@@ -427,6 +431,10 @@
 
     private async Task DeleteContact(int id)
     {
+        if (!UserService.IsAuthenticated)
+        {
+            await UserService.EnsureDemoLoggedInAsync();
+        }
         await UserService.DeleteEmergencyContactAsync(id);
         emergencyContacts = await UserService.GetEmergencyContactsAsync();
     }
@@ -454,6 +462,13 @@
         StateHasChanged();
         try
         {
+            // Demo mode: make sure we have a token before mutating server state.
+            // On a cold-starting API the background sign-in may not be done yet.
+            if (!UserService.IsAuthenticated)
+            {
+                await UserService.EnsureDemoLoggedInAsync();
+            }
+
             var ok = await UserService.UpdateNextOfKinAsync(nokName, nokPhone, nokWhatsApp, nokEmail);
             if (ok)
             {
@@ -465,7 +480,7 @@
             else
             {
                 nokSuccess = false;
-                nokMessage = "Could not save. Check the email format and try again.";
+                nokMessage = "Could not save — please try again in a few seconds (server may still be waking up).";
             }
         }
         catch (Exception ex)

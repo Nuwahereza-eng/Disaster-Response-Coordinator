@@ -77,15 +77,21 @@ namespace DRC.App.Components.Pages
         {
             if (firstRender)
             {
-                // Fast path: restore any cached auth from localStorage. This is just JS interop \u2014
-                // no network call \u2014 so it doesn't freeze the UI on a cold-starting backend.
+                // Demo mode: app is always signed in. Show the default identity
+                // immediately so the badge / sidebar never flash a 'logged out' state
+                // while the cold-starting backend finishes its silent sign-in.
+                isAuthenticated = true;
+                userName = "Peter Nuwahereza";
+                userPhone = "+256779081600";
+
+                // Fast path: restore any cached auth from localStorage. This is just JS interop —
+                // no network call — so it doesn't freeze the UI on a cold-starting backend.
                 await UserClient.InitializeAsync();
 
                 if (UserClient.IsAuthenticated)
                 {
-                    isAuthenticated = true;
-                    userName = UserClient.CurrentUser?.FullName;
-                    userPhone = UserClient.CurrentUser?.Phone;
+                    userName = UserClient.CurrentUser?.FullName ?? userName;
+                    userPhone = UserClient.CurrentUser?.Phone ?? userPhone;
                     AgentClient.SetAuthToken(UserClient.AuthToken);
                 }
                 StateHasChanged();
@@ -103,9 +109,8 @@ namespace DRC.App.Components.Pages
                     {
                         await InvokeAsync(() =>
                         {
-                            isAuthenticated = true;
-                            userName = UserClient.CurrentUser?.FullName;
-                            userPhone = UserClient.CurrentUser?.Phone;
+                            userName = UserClient.CurrentUser?.FullName ?? userName;
+                            userPhone = UserClient.CurrentUser?.Phone ?? userPhone;
                             AgentClient.SetAuthToken(UserClient.AuthToken);
                             StateHasChanged();
                         });
