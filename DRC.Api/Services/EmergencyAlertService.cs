@@ -130,7 +130,20 @@ namespace DRC.Api.Services
             [EmergencyType.Violence] = new[] { "attack", "fighting", "violence", "shooting", "armed", "robbery", "assault" },
             [EmergencyType.MedicalEmergency] = new[] { "heart attack", "stroke", "severe bleeding", "unconscious", "not breathing", "giving birth", "labor", "seizure", "convulsions", "choking", "poisoning", "overdose", "chest pain", "can't breathe", "allergic reaction", "anaphylaxis" },
             [EmergencyType.Drowning] = new[] { "drowning", "fell in water", "can't swim", "in the river", "in the lake" },
-            [EmergencyType.BuildingCollapse] = new[] { "building collapse", "house collapsed", "roof fell", "structure collapse", "wall fell", "trapped inside", "trapped in building", "trapped in the building", "building hit", "missile", "explosion", "bombed" },
+            [EmergencyType.BuildingCollapse] = new[] {
+                // Buildings
+                "building collapse", "building collapsed", "house collapsed", "roof fell", "roof collapsed",
+                "structure collapse", "wall fell", "wall collapsed", "ceiling fell", "ceiling collapsed",
+                "building hit", "missile", "explosion", "bombed",
+                // Landfill / garbage / rubble — the Kiteezi case and similar
+                "landfill", "garbage collapse", "garbage collapsed", "rubbish dump", "trapped under garbage",
+                "trapped by garbage", "trapped in garbage", "buried in garbage", "buried under garbage",
+                "trapped in landfill", "trapped in a landfill", "buried in landfill", "dump collapsed",
+                // Generic trapped / buried language people actually use
+                "trapped", "trapped inside", "trapped in building", "trapped in the building",
+                "trapped under", "buried", "buried alive", "buried under", "under rubble", "under debris",
+                "stuck under", "can't get out", "cant get out", "cannot get out", "rescue us", "save us"
+            },
             [EmergencyType.MissingPerson] = new[] { "missing", "lost child", "can't find", "disappeared", "lost person" }
         };
 
@@ -184,6 +197,22 @@ namespace DRC.Api.Services
 
             if (detectedType == EmergencyType.Unknown && maxMatches == 0)
             {
+                // Critical-fallback: words like 'trapped', 'buried', 'rescue us', 'sos', 'help now'
+                // are life-threatening on their own. Don't punt to 'not an emergency' just because
+                // we couldn't classify the disaster type — dispatch first, classify later.
+                var criticalSurvivalCues = new[] {
+                    "trapped", "buried", "rescue us", "save us", "help us", "help now", "please help",
+                    "sos", "dying", "can't breathe", "cant breathe", "unconscious", "not breathing",
+                    "severe bleeding"
+                };
+                if (criticalSurvivalCues.Any(k => lowerMessage.Contains(k)))
+                {
+                    _logger.LogInformation(
+                        "Critical-fallback emergency: no type matched but survival keywords present in: {Message}",
+                        message);
+                    return (true, EmergencySeverity.Critical, EmergencyType.BuildingCollapse);
+                }
+
                 return (false, EmergencySeverity.Low, EmergencyType.Unknown);
             }
 
