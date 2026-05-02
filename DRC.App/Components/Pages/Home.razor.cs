@@ -489,6 +489,14 @@ namespace DRC.App.Components.Pages
                 prompt = "";
                 Processing = false;
                 StateHasChanged();
+
+                // Refresh the sidebar so the user sees this new conversation
+                // appear in 'request history' immediately. Fire-and-forget —
+                // we don't want a slow history fetch to block input.
+                _ = Task.Run(async () =>
+                {
+                    try { await LoadChatHistoryAsync(); } catch { /* ignore */ }
+                });
             }
         }
 
@@ -531,28 +539,10 @@ namespace DRC.App.Components.Pages
             // Best-effort haptic feedback (mobile browsers).
             try { await JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { /* ignore */ }
 
-            // First tap: arm the 5-second confirmation window.
-            if (!sosConfirming)
-            {
-                sosConfirming = true;
-                sosSecondsLeft = 5;
-                sosConfirmCts?.Cancel();
-                sosConfirmCts = new CancellationTokenSource();
-                _ = RunSosCountdown(sosConfirmCts.Token);
-                StateHasChanged();
-                return;
-            }
-
-            // Second tap within the window: dispatch.
-            sosConfirmCts?.Cancel();
-            sosConfirming = false;
-
-            // ============================================================
-            // Make sure the chat shows what's happening RIGHT NOW so the
-            // user (or judge in a demo) never just sees a toast and wonders
-            // "did anything happen?". We populate the chat synchronously
-            // before any network round-trip.
-            // ============================================================
+            // ONE-TAP DISPATCH. No confirmation step — accidental taps are a
+            // far smaller cost than a missed real emergency. The chat banner +
+            // immediate ack message make it obvious what just happened, and
+            // the user can always type a follow-up to cancel.
 
             // Refresh GPS so the user message includes coordinates.
             await RequestUserLocationAsync();
