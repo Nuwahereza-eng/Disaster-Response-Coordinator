@@ -195,7 +195,9 @@ Agent:";
                 try
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
-                    var response = await model.GenerateContent(fullPrompt);
+                    // IMPORTANT: pass cts.Token so the call actually cancels at 12s.
+                    // Without this the agent can hang on Gemini for the full HttpClient default (100s).
+                    var response = await model.GenerateContent(fullPrompt, cancellationToken: cts.Token);
                     responseText = response?.Text ?? "I'm here to help. How can I assist you?";
                 }
                 catch (TaskCanceledException)

@@ -51,7 +51,7 @@ namespace DRC.App
             {
                 // Use localhost for local development, "http://api" for Docker/Aspire
                 client.BaseAddress = new Uri(apiUrl);
-                client.Timeout = TimeSpan.FromMinutes(5); // Increased timeout for AI responses
+                client.Timeout = TimeSpan.FromSeconds(45); // Hard ceiling — the API itself is bounded to ~25s; this prevents a stuck "analyzing" spinner
             });
 
             // Admin service for admin panel

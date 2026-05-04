@@ -485,6 +485,15 @@ namespace DRC.App.Components.Pages
                 isEmergency = response.IsEmergency;
                 emergencySeverity = response.Severity;
             }
+            catch (TaskCanceledException)
+            {
+                ErrorMessage = "The agent took too long to respond. Please try again — if this is an emergency, tap the SOS button.";
+                messages.Add(new MessageSave
+                {
+                    Prompt = "⚠️ The agent didn't respond in time. Please retry, or tap the red SOS button for immediate dispatch.",
+                    Role = 0
+                });
+            }
             catch (Exception ex)
             {
                 ErrorMessage = ex.Message;

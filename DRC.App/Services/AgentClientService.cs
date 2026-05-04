@@ -41,7 +41,11 @@ namespace DRC.App.Services
             var requestUri = "api/Agent/Conversation" + (queryParams.Any() ? $"?{string.Join("&", queryParams)}" : "");
             var content = new StringContent(JsonSerializer.Serialize(message), Encoding.UTF8, "application/json");
 
-            using (var response = await _httpClient.PostAsync(requestUri, content))
+            // Per-call hard cap so the chat spinner can never hang indefinitely,
+            // even if the underlying HttpClient timeout misbehaves.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+
+            using (var response = await _httpClient.PostAsync(requestUri, content, cts.Token))
             {
                 response.EnsureSuccessStatusCode();
                 var responseContent = await response.Content.ReadAsStringAsync();

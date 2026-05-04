@@ -82,12 +82,14 @@ namespace DRC.Api
             {
                 // Using OpenStreetMap Overpass API (free, no API key required)
                 client.BaseAddress = new Uri("https://overpass-api.de/api/interpreter");
+                client.Timeout = TimeSpan.FromSeconds(8); // Hard cap — Overpass can stall otherwise
             });
 
             builder.Services.AddHttpClient<IGeocodingService, GeocodingService>(client =>
             {
                 // Using OpenStreetMap Nominatim API (free, no API key required)
                 client.BaseAddress = new Uri("https://nominatim.openstreetmap.org/search");
+                client.Timeout = TimeSpan.FromSeconds(6); // Hard cap — Nominatim is the #1 cause of agent hangs
             });
 
             // Use Redis if connection string is configured, otherwise fall back to in-memory cache
