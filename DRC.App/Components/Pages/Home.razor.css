@@ -1291,3 +1291,117 @@
     .sos-fab i { font-size: 1.2rem; }
     .sos-fab .sos-label { font-size: 0.65rem; }
 }
+
+.sos-fab.open {
+    transform: rotate(45deg);
+    animation: none;
+}
+
+/* ========================================
+   SOS TYPE MENU — popover above the FAB
+   ======================================== */
+.sos-fab-wrapper { position: relative; }
+
+.sos-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    z-index: 1999;
+    animation: sosMenuFade 0.15s ease-out;
+}
+
+.sos-menu {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 7rem;
+    z-index: 2001;
+    width: 240px;
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 0.75rem;
+    box-shadow:
+        0 20px 40px rgba(0, 0, 0, 0.25),
+        0 6px 14px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    animation: sosMenuSlideUp 0.2s ease-out;
+}
+
+.sos-menu-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.4rem 0.5rem 0.25rem;
+}
+
+.sos-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #1e293b;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.sos-menu-item:hover:not(:disabled) {
+    background: #ffffff;
+    border-color: #2563eb;
+    transform: translateX(-2px);
+}
+
+.sos-menu-item:active:not(:disabled) { transform: scale(0.98); }
+.sos-menu-item:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.sos-menu-emoji { font-size: 1.4rem; line-height: 1; }
+.sos-menu-label { flex: 1; }
+
+.sos-menu-item.landslide:hover:not(:disabled) { border-color: #b45309; }
+.sos-menu-item.flood:hover:not(:disabled)     { border-color: #2563eb; }
+.sos-menu-item.fire:hover:not(:disabled)      { border-color: #dc2626; }
+.sos-menu-item.medical:hover:not(:disabled)   { border-color: #16a34a; }
+.sos-menu-item.other:hover:not(:disabled)     { border-color: #f59e0b; }
+
+.sos-menu-cancel {
+    margin-top: 0.25rem;
+    padding: 0.55rem;
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 10px;
+}
+
+.sos-menu-cancel:hover { background: #f1f5f9; color: #1e293b; }
+
+@keyframes sosMenuFade {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@keyframes sosMenuSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+    .sos-menu {
+        right: 0.75rem;
+        bottom: 5.5rem;
+        width: calc(100vw - 1.5rem);
+        max-width: 320px;
+    }
+}

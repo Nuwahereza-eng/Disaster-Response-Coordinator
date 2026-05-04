@@ -60,6 +60,7 @@ namespace DRC.App.Components.Pages
         // SOS — two-tap confirm pattern (prevents accidental dispatch)
         private bool sosConfirming = false;
         private int sosSecondsLeft = 5;
+        private bool sosMenuOpen = false;
         private CancellationTokenSource? sosConfirmCts;
 
         // Nearby Help map
@@ -533,64 +534,9 @@ namespace DRC.App.Components.Pages
                 var raw = qs["emergency_type"];
                 if (string.IsNullOrWhiteSpace(raw)) return;
 
-                var type = raw.Trim().ToUpperInvariant();
-                var (label, userPrompt, tip) = type switch
-                {
-                    "LANDSLIDE" => ("Landslide",
-                        "\ud83d\udea8 SOS \u2014 there's a landslide in my area. People may be trapped under mud and debris. We need urgent rescue.",
-                        "If you're trapped: tap on something hard so rescuers can hear you, conserve phone battery, and stay calm. Do NOT try to dig yourself out \u2014 wait for trained responders."),
-                    "FLOOD" => ("Flood",
-                        "\ud83d\udea8 SOS \u2014 there's flooding in my area, water is rising fast. We need help and possibly evacuation.",
-                        "Move to the highest ground you can reach. Do not walk or drive through moving water \u2014 even 15 cm can sweep you off your feet."),
-                    "FIRE" => ("Fire",
-                        "\ud83d\udea8 SOS \u2014 there's a fire emergency at my location. We need fire brigade and medical help immediately.",
-                        "Get out, stay out, stay low under smoke. Close doors behind you to slow the spread. If trapped, seal door cracks with cloth and signal from a window."),
-                    "MEDICAL" => ("Medical",
-                        "\ud83d\udea8 SOS \u2014 I have a medical emergency right now. We need an ambulance immediately.",
-                        "Stay still, keep the patient lying down if conscious, do not give food or drink. Apply firm pressure to any bleeding wound."),
-                    "OTHER" => ("Emergency",
-                        "\ud83d\udea8 SOS \u2014 I have an emergency right now and need help immediately.",
-                        "Stay where you are if it's safe. Conserve phone battery. Help is being coordinated."),
-                    _ => (type, $"\ud83d\udea8 SOS \u2014 {type} emergency. We need urgent help.", "Stay calm and stay where you are if it's safe.")
-                };
-
-                // Make sure GPS is fresh.
-                await RequestUserLocationAsync();
-                var locationText = (userLatitude.HasValue && userLongitude.HasValue)
-                    ? $" My GPS coordinates are {userLatitude:F5}, {userLongitude:F5}."
-                    : " (location unavailable \u2014 please share)";
-
-                var fullPrompt = userPrompt + locationText + " Please dispatch the closest responders and notify my emergency contacts.";
-
-                // 1. User message in chat \u2014 instantly visible.
-                messages.Add(new MessageSave { Prompt = fullPrompt, Role = 1 });
-
-                // 2. Immediate Direco ack so the user sees action before the LLM round-trip.
-                var ackHtml =
-                    $"<div class='agent-actions'><strong>\ud83d\udea8 {label} emergency received \u2014 dispatching now\u2026</strong>" +
-                    "<ul>" +
-                    "<li>\ud83d\udcdd Logged your emergency with GPS</li>" +
-                    "<li>\ud83d\udcde Notifying your next of kin (SMS + WhatsApp + email)</li>" +
-                    "<li>\ud83d\ude91 Alerting closest responders</li>" +
-                    "<li>\ud83d\udcf6 Queued offline so it will deliver even if your network drops</li>" +
-                    "</ul></div>" +
-                    $"<p><strong>Stay where you are. Help is being coordinated.</strong> {tip}</p>";
-                messages.Add(new MessageSave { Prompt = ackHtml, Role = 0 });
-
-                isEmergency = true;
-                emergencySeverity = "Critical";
-
-                StateHasChanged();
-                try { await JSRuntime.InvokeVoidAsync("ScrollToBottom", "chatcontainer"); } catch { }
-
-                // 3. Offline-capable JS dispatch (queues to IndexedDB if no network).
-                try { _ = JSRuntime.InvokeVoidAsync("drcPwa.fireSos", type).AsTask(); } catch { }
-
-                // 4. Strip the query string so a page refresh doesn't re-fire,
-                //    then call the agent for the real follow-up actions.
+                // Strip the query string so a page refresh doesn't re-fire.
                 NavigationManager.NavigateTo("/", forceLoad: false, replace: true);
-                prompt = fullPrompt;
-                await CallAgent(addUserMessage: false);
+                await TriggerEmergencyTypeAsync(raw);
             }
             catch (Exception ex)
             {
@@ -598,68 +544,86 @@ namespace DRC.App.Components.Pages
             }
         }
 
-        // =========================================================
-        // SOS \u2014 instant one-tap dispatch.
-        private async Task OnSosClick()
+        // Shared dispatcher used by both the in-app SOS menu and the
+        // ?emergency_type=... query string (set by the PWA floating FAB).
+        private async Task TriggerEmergencyTypeAsync(string rawType)
         {
             if (Processing) return;
+            if (string.IsNullOrWhiteSpace(rawType)) return;
 
-            // Best-effort haptic feedback (mobile browsers).
-            try { await JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { /* ignore */ }
+            sosMenuOpen = false;
 
-            // ONE-TAP DISPATCH. No confirmation step — accidental taps are a
-            // far smaller cost than a missed real emergency. The chat banner +
-            // immediate ack message make it obvious what just happened, and
-            // the user can always type a follow-up to cancel.
+            try { await JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { }
 
-            // Refresh GPS so the user message includes coordinates.
+            var type = rawType.Trim().ToUpperInvariant();
+            var (label, userPrompt, tip) = type switch
+            {
+                "LANDSLIDE" => ("Landslide",
+                    "\ud83d\udea8 SOS \u2014 there's a landslide in my area. People may be trapped under mud and debris. We need urgent rescue.",
+                    "If you're trapped: tap on something hard so rescuers can hear you, conserve phone battery, and stay calm. Do NOT try to dig yourself out \u2014 wait for trained responders."),
+                "FLOOD" => ("Flood",
+                    "\ud83d\udea8 SOS \u2014 there's flooding in my area, water is rising fast. We need help and possibly evacuation.",
+                    "Move to the highest ground you can reach. Do not walk or drive through moving water \u2014 even 15 cm can sweep you off your feet."),
+                "FIRE" => ("Fire",
+                    "\ud83d\udea8 SOS \u2014 there's a fire emergency at my location. We need fire brigade and medical help immediately.",
+                    "Get out, stay out, stay low under smoke. Close doors behind you to slow the spread. If trapped, seal door cracks with cloth and signal from a window."),
+                "MEDICAL" => ("Medical",
+                    "\ud83d\udea8 SOS \u2014 I have a medical emergency right now. We need an ambulance immediately.",
+                    "Stay still, keep the patient lying down if conscious, do not give food or drink. Apply firm pressure to any bleeding wound."),
+                "OTHER" or "SOS" => ("Emergency",
+                    "\ud83d\udea8 SOS \u2014 I have an emergency right now and need help immediately.",
+                    "Stay where you are if it's safe. Conserve phone battery. Help is being coordinated."),
+                _ => (type, $"\ud83d\udea8 SOS \u2014 {type} emergency. We need urgent help.", "Stay calm and stay where you are if it's safe.")
+            };
+
             await RequestUserLocationAsync();
-
             var locationText = (userLatitude.HasValue && userLongitude.HasValue)
                 ? $" My GPS coordinates are {userLatitude:F5}, {userLongitude:F5}."
-                : " (location unavailable — please share)";
+                : " (location unavailable \u2014 please share)";
 
-            var sosPrompt = $"\ud83d\udea8 SOS \u2014 I need immediate emergency help right now.{locationText} Please dispatch the closest responders and notify my emergency contacts.";
+            var fullPrompt = userPrompt + locationText + " Please dispatch the closest responders.";
 
-            // 1. User message in chat — instantly visible.
-            messages.Add(new MessageSave { Prompt = sosPrompt, Role = 1 });
+            // 1. User message in chat \u2014 instantly visible.
+            messages.Add(new MessageSave { Prompt = fullPrompt, Role = 1 });
 
-            // 2. Immediate Direco acknowledgement so the user knows action started.
-            //    The full agent response (with Actions Taken chips) will be appended
-            //    when the backend round-trip completes.
+            // 2. Immediate Direco ack so the user sees action before the LLM round-trip.
             var ackHtml =
-                "<div class='agent-actions'><strong>\ud83d\udea8 SOS RECEIVED \u2014 dispatching now\u2026</strong>" +
+                $"<div class='agent-actions'><strong>\ud83d\udea8 {label} emergency received \u2014 dispatching now\u2026</strong>" +
                 "<ul>" +
                 "<li>\ud83d\udcdd Logged your emergency with GPS</li>" +
-                "<li>\ud83d\udcde Notifying your next of kin (SMS + WhatsApp + email)</li>" +
                 "<li>\ud83d\ude91 Alerting closest responders (police 999, ambulance 911, fire 112)</li>" +
                 "<li>\ud83d\udcf6 Queued offline so it will deliver even if your network drops</li>" +
                 "</ul></div>" +
-                "<p><strong>Stay where you are. Help is being coordinated.</strong> If you can, tap on something hard so rescuers can hear you, conserve phone battery, and stay calm.</p>";
+                $"<p><strong>Stay where you are. Help is being coordinated.</strong> {tip}</p>";
             messages.Add(new MessageSave { Prompt = ackHtml, Role = 0 });
 
-            // Mark as emergency so the red banner shows.
             isEmergency = true;
             emergencySeverity = "Critical";
 
-            // Scroll the new messages into view immediately.
             StateHasChanged();
             try { await JSRuntime.InvokeVoidAsync("ScrollToBottom", "chatcontainer"); } catch { }
 
-            // 3. Offline-capable JS path. Fire-and-forget \u2014 drcPwa handles its
-            //    own toasts and queues to IndexedDB if there's no connectivity.
-            try
-            {
-                _ = JSRuntime.InvokeVoidAsync("drcPwa.fireSos", "SOS").AsTask();
-            }
-            catch { /* ignore \u2014 agent path is the fallback */ }
+            // 3. Offline-capable JS dispatch (queues to IndexedDB if no network).
+            try { _ = JSRuntime.InvokeVoidAsync("drcPwa.fireSos", type).AsTask(); } catch { }
 
-            // 4. Agent path \u2014 calls Gemini + tools, appends the real response
-            //    (with Actions Taken chips) to the chat when ready. Best-effort:
-            //    if the API is cold-starting we already showed the ack above.
-            prompt = sosPrompt;
+            // 4. Agent path \u2014 the real follow-up.
+            prompt = fullPrompt;
             await CallAgent(addUserMessage: false);
         }
+
+        // =========================================================
+        // SOS — tap toggles the type menu (Landslide / Flood / Fire /
+        // Medical / Other). Selecting a type calls TriggerEmergencyTypeAsync.
+        private void OnSosClick()
+        {
+            if (Processing) return;
+            sosMenuOpen = !sosMenuOpen;
+            try { _ = JSRuntime.InvokeVoidAsync("sosBuzz"); } catch { }
+        }
+
+        private void CloseSosMenu() => sosMenuOpen = false;
+
+        private Task OnSosTypeSelected(string type) => TriggerEmergencyTypeAsync(type);
 
         private async Task RunSosCountdown(CancellationToken ct)
         {

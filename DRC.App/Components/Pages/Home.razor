@@ -107,7 +107,6 @@
                         <li><i class="bi bi-exclamation-triangle"></i> <strong>Request emergency services</strong> - I'll dispatch ambulance, police, or fire brigade</li>
                         <li><i class="bi bi-geo-alt-fill"></i> <strong>Find nearby facilities</strong> - Hospitals, shelters, police stations</li>
                         <li><i class="bi bi-house-fill"></i> <strong>Register you for shelter</strong> - Official registration sent to shelters</li>
-                        <li><i class="bi bi-telephone-fill"></i> <strong>Notify your family</strong> - I'll alert your emergency contacts</li>
                         <li><i class="bi bi-truck"></i> <strong>Request evacuation</strong> - Coordinate evacuation teams</li>
                         <li><i class="bi bi-clipboard-check"></i> <strong>Safety instructions</strong> - Disaster-specific guidance</li>
                     </ul>
@@ -199,24 +198,46 @@
     </div>
 
     @* ======================= FLOATING SOS BUTTON =======================
-       Two-tap pattern (5s window) so an accidental tap can't dispatch a
-       real emergency. Second tap fires the offline-capable PWA path AND
-       the agent in parallel, so it works even with no internet. *@
-    <button class="sos-fab @(sosConfirming ? "confirming" : "")"
-            @onclick="OnSosClick"
-            disabled="@Processing"
-            title="Emergency SOS — tap, then tap again within 5s to confirm">
-        @if (sosConfirming)
+       Tap once to open the type menu. Pick Landslide / Flood / Fire /
+       Medical / Other — the agent dispatches and a chat opens with
+       disaster-specific guidance. Works offline (queued to IndexedDB). *@
+    <div class="sos-fab-wrapper">
+        @if (sosMenuOpen)
         {
-            <span class="sos-label">Tap again to confirm</span>
-            <span class="sos-countdown">@sosSecondsLeft</span>
+            <div class="sos-menu-backdrop" @onclick="CloseSosMenu"></div>
+            <div class="sos-menu">
+                <div class="sos-menu-title">What's the emergency?</div>
+                <button class="sos-menu-item landslide" @onclick='() => OnSosTypeSelected("LANDSLIDE")' disabled="@Processing">
+                    <span class="sos-menu-emoji">⛰️</span>
+                    <span class="sos-menu-label">Landslide</span>
+                </button>
+                <button class="sos-menu-item flood" @onclick='() => OnSosTypeSelected("FLOOD")' disabled="@Processing">
+                    <span class="sos-menu-emoji">🌊</span>
+                    <span class="sos-menu-label">Flood</span>
+                </button>
+                <button class="sos-menu-item fire" @onclick='() => OnSosTypeSelected("FIRE")' disabled="@Processing">
+                    <span class="sos-menu-emoji">🔥</span>
+                    <span class="sos-menu-label">Fire</span>
+                </button>
+                <button class="sos-menu-item medical" @onclick='() => OnSosTypeSelected("MEDICAL")' disabled="@Processing">
+                    <span class="sos-menu-emoji">🏥</span>
+                    <span class="sos-menu-label">Medical</span>
+                </button>
+                <button class="sos-menu-item other" @onclick='() => OnSosTypeSelected("OTHER")' disabled="@Processing">
+                    <span class="sos-menu-emoji">⚠️</span>
+                    <span class="sos-menu-label">Other</span>
+                </button>
+                <button class="sos-menu-cancel" @onclick="CloseSosMenu">Cancel</button>
+            </div>
         }
-        else
-        {
+        <button class="sos-fab @(sosMenuOpen ? "open" : "")"
+                @onclick="OnSosClick"
+                disabled="@Processing"
+                title="Emergency SOS — tap to choose emergency type">
             <i class="bi bi-exclamation-octagon-fill"></i>
             <span class="sos-label">SOS</span>
-        }
-    </button>
+        </button>
+    </div>
 
     @* ======================= NEARBY HELP MAP ======================= *@
     <div class="nearby-map-widget @(mapCollapsed ? "collapsed" : "")">
