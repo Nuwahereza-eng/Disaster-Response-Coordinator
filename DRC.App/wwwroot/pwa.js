@@ -146,82 +146,16 @@
   }
 
   // -------- Floating SOS button --------
-  // Routes that should NOT show the floating PWA SOS FAB.
-  //   - /admin*  : admin dashboards already have emergency tools
-  //   - /        : Home page renders its own Razor-driven SOS button (with
-  //                the same type menu). Showing both makes them visually
-  //                clash and "alternate" as Blazor re-renders.
-  const SOS_HIDDEN_PREFIXES = ['/admin'];
-  const SOS_HIDDEN_EXACT = ['/', '/index', '/index.html'];
-  function shouldShowFab() {
-    const p = (location.pathname || '/').toLowerCase();
-    if (SOS_HIDDEN_EXACT.includes(p)) return false;
-    return !SOS_HIDDEN_PREFIXES.some(prefix => p === prefix || p.startsWith(prefix + '/'));
-  }
-  function removeFab() {
-    const el = document.getElementById('drc-sos-fab');
-    if (el) el.remove();
-  }
+  // The floating SOS FAB is now rendered by Blazor (Home.razor) so we have a
+  // single source of truth, can open a chat, and avoid the JS/Razor button
+  // alternation bug. This function only purges any stale FAB that an older
+  // cached pwa.js may have left behind in the DOM.
   function injectFab() {
-    if (!shouldShowFab()) { removeFab(); return; }
-    if (document.getElementById('drc-sos-fab')) return;
-    const wrap = document.createElement('div');
-    wrap.id = 'drc-sos-fab';
-    wrap.innerHTML = `
-      <button class="drc-sos-main" type="button" aria-label="Open SOS menu">
-        <span class="drc-sos-ring"></span>
-        <span class="drc-sos-label">SOS</span>
-        <span class="drc-sos-badge" id="drc-outbox-badge" hidden>0</span>
-      </button>
-      <div class="drc-sos-menu" hidden>
-        <button data-type="LANDSLIDE" class="drc-sos-opt drc-sos-flood">⛰️ Landslide</button>
-        <button data-type="FLOOD"     class="drc-sos-opt drc-sos-flood">🌊 Flood</button>
-        <button data-type="FIRE"      class="drc-sos-opt drc-sos-fire">🔥 Fire</button>
-        <button data-type="MEDICAL"   class="drc-sos-opt drc-sos-med">🏥 Medical</button>
-        <button data-type="OTHER"     class="drc-sos-opt">🚨 Other emergency</button>
-      </div>
-    `;
-    document.body.appendChild(wrap);
-
-    const main = wrap.querySelector('.drc-sos-main');
-    const menu = wrap.querySelector('.drc-sos-menu');
-    main.addEventListener('click', () => {
-      menu.hidden = !menu.hidden;
-      main.classList.toggle('open', !menu.hidden);
-    });
-    wrap.querySelectorAll('.drc-sos-opt').forEach((b) => {
-      b.addEventListener('click', () => {
-        const type = b.dataset.type;
-        menu.hidden = true; main.classList.remove('open');
-        // Take the user straight into the chat. Home.razor reads the
-        // ?emergency_type= query param on load and asks the agent for help
-        // with that specific disaster type, with the user's GPS attached.
-        // The chat UI shows progress immediately — no popup, no wait.
-        const target = `/?emergency_type=${encodeURIComponent(type)}&t=${Date.now()}`;
-        if (location.pathname === '/' || location.pathname === '/index.html') {
-          // Already on Home — full reload so OnAfterRenderAsync re-runs and
-          // picks up the new query string.
-          location.href = target;
-        } else {
-          location.href = target;
-        }
-      });
-    });
-
-    // Auto-launch via shortcut: /?sos=FIRE  (legacy direct-fire path)
-    try {
-      const params = new URLSearchParams(location.search);
-      const auto = params.get('sos');
-      if (auto) {
-        setTimeout(() => fireSos(auto), 600);
-        params.delete('sos');
-        history.replaceState({}, '', location.pathname + (params.toString() ? '?' + params.toString() : ''));
-      }
-    } catch {}
-
-    // Show queued count on load
-    outboxCount().then(updateOutboxBadge).catch(() => {});
+    const stale = document.getElementById('drc-sos-fab');
+    if (stale) stale.remove();
   }
+  function removeFab() { injectFab(); }
+  function shouldShowFab() { return false; }
 
   function updateOutboxBadge(n) {
     const el = document.getElementById('drc-outbox-badge');
