@@ -15,9 +15,11 @@ namespace DRC.Api.Services
             _configuration = configuration;
             _logger = logger;
 
-            var username = _configuration["Apps:AfricasTalking:Username"] ?? "sandbox";
-            var apiKey = _configuration["Apps:AfricasTalking:ApiKey"] ?? "";
-            _senderId = _configuration["Apps:AfricasTalking:SenderId"] ?? "ATInfo";
+            // Trim() is critical: Render's env editor occasionally appends a trailing
+            // \n to pasted values, and Africa's Talking rejects auth on 'drc-ug\n'.
+            var username = (_configuration["Apps:AfricasTalking:Username"] ?? "sandbox").Trim();
+            var apiKey   = (_configuration["Apps:AfricasTalking:ApiKey"]   ?? "").Trim();
+            _senderId    = (_configuration["Apps:AfricasTalking:SenderId"] ?? "ATInfo").Trim();
 
             // Determine environment: sandbox username means sandbox environment
             var environment = username.Equals("sandbox", StringComparison.OrdinalIgnoreCase)

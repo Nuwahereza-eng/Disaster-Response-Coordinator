@@ -60,13 +60,19 @@ namespace DRC.Api.Controllers
             var fromEmail = _cfg["Email:FromAddress"]
                             ?? Environment.GetEnvironmentVariable("RESEND_FROM_EMAIL");
 
-            var waToken    = _cfg["Apps:Meta:Token"];
+            var waToken    = _cfg["Apps:Meta:AccessToken"];
             var waPhoneId  = _cfg["Apps:Meta:WhatsAppBusinessPhoneNumberId"];
 
             // Detect the classic "user pasted KEY=value as the value" mistake
             string? Suspicious(string? v, string keyName) =>
                 !string.IsNullOrEmpty(v) && v.Contains("=") && v.StartsWith(keyName, StringComparison.OrdinalIgnoreCase)
                     ? "value contains '=' and starts with key name — likely whole 'KEY=value' line was pasted"
+                    : null;
+
+            // Detect trailing/leading whitespace or newlines (Render env editor often appends \n)
+            string? Whitespace(string? v, string label) =>
+                !string.IsNullOrEmpty(v) && v != v.Trim()
+                    ? $"{label} has trailing/leading whitespace or newline — re-paste the value WITHOUT pressing Enter at the end"
                     : null;
 
             return Ok(new
@@ -83,6 +89,9 @@ namespace DRC.Api.Controllers
                     {
                         Suspicious(atUser, "Apps__AfricasTalking__Username"),
                         Suspicious(atKey, "Apps__AfricasTalking__ApiKey"),
+                        Whitespace(atUser, "Username"),
+                        Whitespace(atKey, "ApiKey"),
+                        Whitespace(atSender, "SenderId"),
                         string.IsNullOrEmpty(atUser) ? "Apps:AfricasTalking:Username NOT SET — will default to 'sandbox'" : null,
                         string.IsNullOrEmpty(atKey)  ? "Apps:AfricasTalking:ApiKey NOT SET — SMS will fail" : null
                     }.Where(w => w != null)
@@ -112,8 +121,10 @@ namespace DRC.Api.Controllers
                     phoneNumberId = waPhoneId,
                     warnings = new[]
                     {
-                        string.IsNullOrEmpty(waToken)    ? "Apps:Meta:Token NOT SET" : null,
+                        string.IsNullOrEmpty(waToken)    ? "Apps:Meta:AccessToken NOT SET" : null,
                         string.IsNullOrEmpty(waPhoneId)  ? "Apps:Meta:WhatsAppBusinessPhoneNumberId NOT SET" : null,
+                        Whitespace(waToken, "AccessToken"),
+                        Whitespace(waPhoneId, "WhatsAppBusinessPhoneNumberId"),
                         "WhatsApp recipient must have messaged your business number first (Meta policy)"
                     }.Where(w => w != null)
                 },

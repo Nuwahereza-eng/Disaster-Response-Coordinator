@@ -56,11 +56,12 @@ namespace DRC.Api
             builder.Services.AddWhatsAppBusinessCloudApiService(
                 new WhatsAppBusinessCloudApiConfig
                 {
-                    AccessToken = builder.Configuration["Apps:Meta:AccessToken"],
-                    AppName = builder.Configuration["Apps:Meta:AppName"],
-                    WhatsAppBusinessAccountId = builder.Configuration["Apps:Meta:WhatsAppBusinessAccountId"],
-                    WhatsAppBusinessId = builder.Configuration["Apps:Meta:WhatsAppBusinessId"],
-                    WhatsAppBusinessPhoneNumberId = builder.Configuration["Apps:Meta:WhatsAppBusinessPhoneNumberId"]
+                    // .Trim() guards against Render's env editor appending stray \n to pasted values.
+                    AccessToken                   = builder.Configuration["Apps:Meta:AccessToken"]?.Trim(),
+                    AppName                       = builder.Configuration["Apps:Meta:AppName"]?.Trim(),
+                    WhatsAppBusinessAccountId     = builder.Configuration["Apps:Meta:WhatsAppBusinessAccountId"]?.Trim(),
+                    WhatsAppBusinessId            = builder.Configuration["Apps:Meta:WhatsAppBusinessId"]?.Trim(),
+                    WhatsAppBusinessPhoneNumberId = builder.Configuration["Apps:Meta:WhatsAppBusinessPhoneNumberId"]?.Trim()
                 });
 
             builder.Services.AddHttpClient<IBenfeitoriaService, BenfeitoriaService>(client =>
