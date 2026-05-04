@@ -1,6 +1,8 @@
 using DRC.Api.Interfaces;
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Mail;
+using System.Text.Json;
 
 namespace DRC.Api.Services
 {
@@ -8,60 +10,122 @@ namespace DRC.Api.Services
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<EmailService> _logger;
+        private readonly IHttpClientFactory _httpFactory;
+
+        // Resend (HTTP API — works on Render where SMTP egress is blocked)
+        private readonly string _resendApiKey;
+        private readonly bool _useResend;
+
+        // SMTP fallback (used for local dev when Resend isn't configured)
         private readonly string _smtpHost;
         private readonly int _smtpPort;
         private readonly string _smtpUsername;
         private readonly string _smtpPassword;
+        private readonly bool _smtpConfigured;
+
         private readonly string _fromEmail;
         private readonly string _fromName;
-        private readonly bool _isConfigured;
 
-        public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
+        public EmailService(IConfiguration configuration, ILogger<EmailService> logger, IHttpClientFactory httpFactory)
         {
             _configuration = configuration;
             _logger = logger;
-            
-            // Load SMTP settings from configuration
+            _httpFactory = httpFactory;
+
+            // ---- Resend (preferred on Render / production) ----
+            _resendApiKey = _configuration["Email:ResendApiKey"]
+                ?? Environment.GetEnvironmentVariable("RESEND_API_KEY") ?? "";
+            _useResend = !string.IsNullOrWhiteSpace(_resendApiKey);
+
+            // ---- SMTP fallback (local dev) ----
             _smtpHost = _configuration["Email:SmtpHost"] ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_HOST") ?? "";
             _smtpPort = int.TryParse(_configuration["Email:SmtpPort"] ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_PORT"), out var port) ? port : 587;
             _smtpUsername = _configuration["Email:Username"] ?? Environment.GetEnvironmentVariable("EMAIL_USERNAME") ?? "";
             _smtpPassword = _configuration["Email:Password"] ?? Environment.GetEnvironmentVariable("EMAIL_PASSWORD") ?? "";
-            _fromEmail = _configuration["Email:FromEmail"] ?? Environment.GetEnvironmentVariable("EMAIL_FROM") ?? "alerts@drc.ug";
-            _fromName = _configuration["Email:FromName"] ?? "Uganda Disaster Response";
-            
-            _isConfigured = !string.IsNullOrEmpty(_smtpHost) && !string.IsNullOrEmpty(_smtpUsername) && !string.IsNullOrEmpty(_smtpPassword);
-            
-            if (!_isConfigured)
-            {
-                _logger.LogWarning("📧 Email service not configured. Set EMAIL_SMTP_HOST, EMAIL_USERNAME, EMAIL_PASSWORD environment variables.");
-            }
+            _smtpConfigured = !string.IsNullOrEmpty(_smtpHost) && !string.IsNullOrEmpty(_smtpUsername) && !string.IsNullOrEmpty(_smtpPassword);
+
+            _fromEmail = _configuration["Email:FromEmail"]
+                ?? Environment.GetEnvironmentVariable("EMAIL_FROM")
+                ?? "onboarding@resend.dev";
+            _fromName = _configuration["Email:FromName"]
+                ?? Environment.GetEnvironmentVariable("EMAIL_FROM_NAME")
+                ?? "Uganda Disaster Response";
+
+            if (_useResend)
+                _logger.LogInformation("📧 Email service: Resend HTTP API (from {From})", _fromEmail);
+            else if (_smtpConfigured)
+                _logger.LogInformation("📧 Email service: SMTP fallback ({Host}:{Port})", _smtpHost, _smtpPort);
             else
-            {
-                _logger.LogInformation("📧 Email service configured with SMTP host: {Host}", _smtpHost);
-            }
+                _logger.LogWarning("📧 Email service NOT configured. Set RESEND_API_KEY (preferred) or EMAIL_SMTP_HOST/USERNAME/PASSWORD.");
         }
 
         public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string? textBody = null)
         {
-            if (!_isConfigured)
-            {
-                _logger.LogWarning("📧 Email not sent - service not configured. Would send to: {Email}", toEmail);
-                return false;
-            }
-
             if (string.IsNullOrEmpty(toEmail))
             {
-                _logger.LogWarning("📧 Email not sent - no email address provided");
+                _logger.LogWarning("📧 Email not sent - no recipient address");
                 return false;
             }
 
+            if (_useResend)
+            {
+                return await SendViaResendAsync(toEmail, toName, subject, htmlBody, textBody);
+            }
+            if (_smtpConfigured)
+            {
+                return await SendViaSmtpAsync(toEmail, toName, subject, htmlBody);
+            }
+
+            _logger.LogWarning("📧 Email not sent - no provider configured. Would send to: {Email}", toEmail);
+            return false;
+        }
+
+        private async Task<bool> SendViaResendAsync(string toEmail, string toName, string subject, string htmlBody, string? textBody)
+        {
+            try
+            {
+                var http = _httpFactory.CreateClient();
+                http.Timeout = TimeSpan.FromSeconds(8);
+                http.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _resendApiKey);
+
+                var fromHeader = string.IsNullOrWhiteSpace(_fromName) ? _fromEmail : $"{_fromName} <{_fromEmail}>";
+                var payload = new
+                {
+                    from = fromHeader,
+                    to = new[] { toEmail },
+                    subject,
+                    html = htmlBody,
+                    text = textBody
+                };
+
+                using var resp = await http.PostAsJsonAsync("https://api.resend.com/emails", payload);
+                if (resp.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("📧 Email sent via Resend to {Email}", toEmail);
+                    return true;
+                }
+                var body = await resp.Content.ReadAsStringAsync();
+                _logger.LogError("📧 Resend rejected email to {Email}: {Status} {Body}", toEmail, (int)resp.StatusCode, body);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "📧 Resend send failed for {Email}", toEmail);
+                return false;
+            }
+        }
+
+        private async Task<bool> SendViaSmtpAsync(string toEmail, string toName, string subject, string htmlBody)
+        {
             try
             {
                 using var smtpClient = new SmtpClient(_smtpHost, _smtpPort)
                 {
                     Credentials = new NetworkCredential(_smtpUsername, _smtpPassword),
                     EnableSsl = true,
-                    DeliveryMethod = SmtpDeliveryMethod.Network
+                    DeliveryMethod = SmtpDeliveryMethod.Network,
+                    Timeout = 8000
                 };
 
                 var mailMessage = new MailMessage
@@ -71,17 +135,15 @@ namespace DRC.Api.Services
                     IsBodyHtml = true,
                     Body = htmlBody
                 };
-                
                 mailMessage.To.Add(new MailAddress(toEmail, toName));
 
                 await smtpClient.SendMailAsync(mailMessage);
-                
-                _logger.LogInformation("📧 Email sent successfully to {Email}", toEmail);
+                _logger.LogInformation("📧 Email sent via SMTP to {Email}", toEmail);
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "📧 Failed to send email to {Email}", toEmail);
+                _logger.LogError(ex, "📧 SMTP send failed for {Email}", toEmail);
                 return false;
             }
         }

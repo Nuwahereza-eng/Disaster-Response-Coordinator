@@ -312,16 +312,36 @@ Agent:";
                 actions.Add(action);
 
                 // AUTO-NOTIFY: Alert user's registered emergency contacts + Next of Kin.
-                // Fires even when there's no logged-in user — demo defaults are used.
-                var contactNotifications = await NotifyUserEmergencyContacts(
-                    session.UserId,
-                    emergencyDetection.Type.ToString(),
-                    emergencyDetection.Severity.ToString(),
-                    locationForEmergency,
-                    message,
-                    session
-                );
-                actions.AddRange(contactNotifications);
+                // Fire-and-forget — SMS / WhatsApp / Email round-trips can take 5–15s
+                // each, and we don't want the chat response blocked behind them.
+                // The user already sees the immediate "dispatching now…" ack in the UI.
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await NotifyUserEmergencyContacts(
+                            session.UserId,
+                            emergencyDetection.Type.ToString(),
+                            emergencyDetection.Severity.ToString(),
+                            locationForEmergency,
+                            message,
+                            session
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Background NotifyUserEmergencyContacts failed");
+                    }
+                });
+
+                // Add a single placeholder action to the agent's response so the
+                // user sees that contacts are being notified.
+                actions.Add(new AgentAction
+                {
+                    ToolName = "notify_emergency_contacts",
+                    Description = "Notifying your emergency contacts (SMS + WhatsApp + Email) in the background",
+                    Status = AgentActionStatus.InProgress
+                });
             }
 
             // Action 2: Find nearby facilities if keywords present
