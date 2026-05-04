@@ -42,8 +42,9 @@ namespace DRC.App.Services
             var content = new StringContent(JsonSerializer.Serialize(message), Encoding.UTF8, "application/json");
 
             // Per-call hard cap so the chat spinner can never hang indefinitely,
-            // even if the underlying HttpClient timeout misbehaves.
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+            // even if the underlying HttpClient timeout misbehaves. Generous to
+            // accommodate Render free-tier cold starts (30-60s container wake).
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(85));
 
             using (var response = await _httpClient.PostAsync(requestUri, content, cts.Token))
             {

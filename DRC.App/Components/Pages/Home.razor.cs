@@ -34,6 +34,7 @@ namespace DRC.App.Components.Pages
         private string prompt = "";
         private string ErrorMessage = "";
         private bool Processing = false;
+        private string processingStatus = "Agent is analyzing and taking action...";
         private Guid? guid = null;
         private bool isEmergency = false;
         private string? emergencySeverity = null;
@@ -430,9 +431,30 @@ namespace DRC.App.Components.Pages
 
         private async Task CallAgent(bool addUserMessage = true)
         {
+            // Progressive status: tell the user what's happening so they don't think it's frozen.
+            // Render free-tier cold starts can take 30-60s for the first request after sleep.
+            using var statusCts = new CancellationTokenSource();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(8), statusCts.Token);
+                    if (statusCts.IsCancellationRequested) return;
+                    processingStatus = "Waking up the server (first request can take ~30s on free tier)…";
+                    await InvokeAsync(StateHasChanged);
+
+                    await Task.Delay(TimeSpan.FromSeconds(20), statusCts.Token);
+                    if (statusCts.IsCancellationRequested) return;
+                    processingStatus = "Almost there—still waiting for the agent…";
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (TaskCanceledException) { /* normal completion */ }
+            });
+
             try
             {
                 Processing = true;
+                processingStatus = "Agent is analyzing and taking action...";
                 StateHasChanged();
                 ErrorMessage = "";
                 
@@ -500,6 +522,7 @@ namespace DRC.App.Components.Pages
             }
             finally
             {
+                statusCts.Cancel();
                 prompt = "";
                 Processing = false;
                 StateHasChanged();

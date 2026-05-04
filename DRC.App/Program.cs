@@ -51,7 +51,9 @@ namespace DRC.App
             {
                 // Use localhost for local development, "http://api" for Docker/Aspire
                 client.BaseAddress = new Uri(apiUrl);
-                client.Timeout = TimeSpan.FromSeconds(45); // Hard ceiling — the API itself is bounded to ~25s; this prevents a stuck "analyzing" spinner
+                // 90s ceiling — Render free tier cold start can take 30-60s for the
+                // API container to wake from sleep. Once warm, the agent responds in 2-4s.
+                client.Timeout = TimeSpan.FromSeconds(90);
             });
 
             // Admin service for admin panel
