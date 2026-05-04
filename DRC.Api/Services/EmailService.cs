@@ -33,23 +33,67 @@ namespace DRC.Api.Services
             _httpFactory = httpFactory;
 
             // ---- Resend (preferred on Render / production) ----
-            _resendApiKey = _configuration["Email:ResendApiKey"]
-                ?? Environment.GetEnvironmentVariable("RESEND_API_KEY") ?? "";
+            // .Trim() guards against the Render env editor appending stray \n.
+            _resendApiKey = (_configuration["Email:ResendApiKey"]
+                ?? Environment.GetEnvironmentVariable("RESEND_API_KEY") ?? "").Trim();
             _useResend = !string.IsNullOrWhiteSpace(_resendApiKey);
 
             // ---- SMTP fallback (local dev) ----
-            _smtpHost = _configuration["Email:SmtpHost"] ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_HOST") ?? "";
-            _smtpPort = int.TryParse(_configuration["Email:SmtpPort"] ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_PORT"), out var port) ? port : 587;
-            _smtpUsername = _configuration["Email:Username"] ?? Environment.GetEnvironmentVariable("EMAIL_USERNAME") ?? "";
-            _smtpPassword = _configuration["Email:Password"] ?? Environment.GetEnvironmentVariable("EMAIL_PASSWORD") ?? "";
+            _smtpHost = (_configuration["Email:SmtpHost"] ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_HOST") ?? "").Trim();
+            _smtpPort = int.TryParse((_configuration["Email:SmtpPort"] ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_PORT") ?? "").Trim(), out var port) ? port : 587;
+            _smtpUsername = (_configuration["Email:Username"] ?? Environment.GetEnvironmentVariable("EMAIL_USERNAME") ?? "").Trim();
+            _smtpPassword = (_configuration["Email:Password"] ?? Environment.GetEnvironmentVariable("EMAIL_PASSWORD") ?? "").Trim();
             _smtpConfigured = !string.IsNullOrEmpty(_smtpHost) && !string.IsNullOrEmpty(_smtpUsername) && !string.IsNullOrEmpty(_smtpPassword);
 
-            _fromEmail = _configuration["Email:FromEmail"]
+            // Resolve the from-address with a critical caveat:
+            // Resend rejects ANY from-address whose domain isn't verified
+            // (gmail.com, yahoo.com etc are NEVER verified for sending).
+            // For Resend's free tier with no verified domain, the ONLY allowed
+            // from-address is onboarding@resend.dev. We auto-correct here so a
+            // stale EMAIL_FROM=user@gmail.com in .env or Render doesn't silently
+            // 403 every email.
+            var rawFrom = (_configuration["Email:FromEmail"]
                 ?? Environment.GetEnvironmentVariable("EMAIL_FROM")
-                ?? "onboarding@resend.dev";
-            _fromName = _configuration["Email:FromName"]
+                ?? "onboarding@resend.dev").Trim();
+
+            var explicitResendFrom = (_configuration["Email:ResendFromEmail"]
+                ?? Environment.GetEnvironmentVariable("RESEND_FROM_EMAIL"))?.Trim();
+
+            if (_useResend)
+            {
+                // Prefer an explicit Resend-friendly from if provided, otherwise
+                // force onboarding@resend.dev whenever the configured from is on
+                // a known-unverified consumer domain.
+                if (!string.IsNullOrWhiteSpace(explicitResendFrom))
+                {
+                    _fromEmail = explicitResendFrom;
+                }
+                else if (rawFrom.EndsWith("@gmail.com", StringComparison.OrdinalIgnoreCase)
+                      || rawFrom.EndsWith("@googlemail.com", StringComparison.OrdinalIgnoreCase)
+                      || rawFrom.EndsWith("@yahoo.com", StringComparison.OrdinalIgnoreCase)
+                      || rawFrom.EndsWith("@outlook.com", StringComparison.OrdinalIgnoreCase)
+                      || rawFrom.EndsWith("@hotmail.com", StringComparison.OrdinalIgnoreCase)
+                      || rawFrom.EndsWith("@live.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning(
+                        "📧 Configured EMAIL_FROM='{From}' uses a consumer domain Resend cannot verify. " +
+                        "Falling back to onboarding@resend.dev. Set RESEND_FROM_EMAIL to override (must be a verified Resend domain).",
+                        rawFrom);
+                    _fromEmail = "onboarding@resend.dev";
+                }
+                else
+                {
+                    _fromEmail = rawFrom;
+                }
+            }
+            else
+            {
+                _fromEmail = rawFrom;
+            }
+
+            _fromName = (_configuration["Email:FromName"]
                 ?? Environment.GetEnvironmentVariable("EMAIL_FROM_NAME")
-                ?? "Uganda Disaster Response";
+                ?? "Uganda Disaster Response").Trim();
 
             if (_useResend)
                 _logger.LogInformation("📧 Email service: Resend HTTP API (from {From})", _fromEmail);
