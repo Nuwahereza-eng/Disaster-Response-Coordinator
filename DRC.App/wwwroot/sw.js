@@ -1,6 +1,6 @@
 /* DIRECO Service Worker — offline shell + IndexedDB SOS outbox + background sync.
    Bumped on every meaningful change to force update. */
-const SW_VERSION = 'direco-sw-v5-2026-05-02';
+const SW_VERSION = 'direco-sw-v6-2026-05-04';
 const STATIC_CACHE = `static-${SW_VERSION}`;
 const SHELL_URLS = [
   '/manifest.webmanifest',

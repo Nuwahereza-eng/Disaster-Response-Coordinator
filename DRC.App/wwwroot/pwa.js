@@ -146,11 +146,16 @@
   }
 
   // -------- Floating SOS button --------
-  // Routes that should NOT show the floating SOS FAB. Admin dashboards already
-  // have their own emergency tools; an extra red button is just clutter.
+  // Routes that should NOT show the floating PWA SOS FAB.
+  //   - /admin*  : admin dashboards already have emergency tools
+  //   - /        : Home page renders its own Razor-driven SOS button (with
+  //                the same type menu). Showing both makes them visually
+  //                clash and "alternate" as Blazor re-renders.
   const SOS_HIDDEN_PREFIXES = ['/admin'];
+  const SOS_HIDDEN_EXACT = ['/', '/index', '/index.html'];
   function shouldShowFab() {
     const p = (location.pathname || '/').toLowerCase();
+    if (SOS_HIDDEN_EXACT.includes(p)) return false;
     return !SOS_HIDDEN_PREFIXES.some(prefix => p === prefix || p.startsWith(prefix + '/'));
   }
   function removeFab() {
