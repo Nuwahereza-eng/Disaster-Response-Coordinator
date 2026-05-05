@@ -261,6 +261,129 @@
             </div>
         </div>
     }
+
+    @* Emergency Details Modal — full info + Leaflet map *@
+    @if (showDetailsModal && detailsEmergency is not null)
+    {
+        <div class="modal-overlay" @onclick="CloseDetailsModal">
+            <div class="modal-content modal-wide" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h3>
+                        @GetTypeEmoji(detailsEmergency.Type) @detailsEmergency.Type Emergency
+                        <span class="badge @GetSeverityClass(detailsEmergency.Severity)" style="margin-left:8px;font-size:11px;">@detailsEmergency.Severity</span>
+                        <span class="muted" style="font-weight:400;font-size:13px;margin-left:8px;">#@detailsEmergency.Id</span>
+                    </h3>
+                    <button class="close-btn" @onclick="CloseDetailsModal">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="details-grid">
+                        <div class="details-info">
+                            <div class="details-row">
+                                <span class="details-label">Status</span>
+                                <span class="details-value"><span class="badge status-@detailsEmergency.Status.ToLower()">@detailsEmergency.Status</span></span>
+                            </div>
+                            <div class="details-row">
+                                <span class="details-label">Reporter</span>
+                                <span class="details-value">@(string.IsNullOrEmpty(detailsEmergency.UserName) ? "Anonymous" : detailsEmergency.UserName)</span>
+                            </div>
+                            <div class="details-row">
+                                <span class="details-label">Phone</span>
+                                <span class="details-value">
+                                    @if (!string.IsNullOrEmpty(detailsEmergency.UserPhone))
+                                    {
+                                        <a href="tel:@detailsEmergency.UserPhone">@detailsEmergency.UserPhone</a>
+                                    }
+                                    else { <text>—</text> }
+                                </span>
+                            </div>
+                            <div class="details-row">
+                                <span class="details-label">Location</span>
+                                <span class="details-value">@(detailsEmergency.Location ?? "Unknown")</span>
+                            </div>
+                            <div class="details-row">
+                                <span class="details-label">Coordinates</span>
+                                <span class="details-value">
+                                    @if (detailsEmergency.Latitude.HasValue && detailsEmergency.Longitude.HasValue)
+                                    {
+                                        <code>@detailsEmergency.Latitude.Value.ToString("F5"), @detailsEmergency.Longitude.Value.ToString("F5")</code>
+                                        <a class="link-btn" target="_blank"
+                                           href="https://www.google.com/maps?q=@(detailsEmergency.Latitude.Value.ToString("F6")),@(detailsEmergency.Longitude.Value.ToString("F6"))">
+                                            Open in Google Maps ↗
+                                        </a>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">Not available</span>
+                                    }
+                                </span>
+                            </div>
+                            <div class="details-row">
+                                <span class="details-label">Reported</span>
+                                <span class="details-value">@detailsEmergency.CreatedAt.ToLocalTime().ToString("dddd, MMM dd yyyy · HH:mm")</span>
+                            </div>
+                            @if (detailsEmergency.AcknowledgedAt.HasValue)
+                            {
+                                <div class="details-row">
+                                    <span class="details-label">Acknowledged</span>
+                                    <span class="details-value">@detailsEmergency.AcknowledgedAt.Value.ToLocalTime().ToString("HH:mm")</span>
+                                </div>
+                            }
+                            @if (detailsEmergency.ResolvedAt.HasValue)
+                            {
+                                <div class="details-row">
+                                    <span class="details-label">Resolved</span>
+                                    <span class="details-value">@detailsEmergency.ResolvedAt.Value.ToLocalTime().ToString("HH:mm")</span>
+                                </div>
+                            }
+                            <div class="details-row">
+                                <span class="details-label">Services</span>
+                                <span class="details-value services-cell">
+                                    @if (detailsEmergency.AmbulanceDispatched) { <span class="service-badge service-medical">🚑 Ambulance</span> }
+                                    @if (detailsEmergency.FireBrigadeDispatched) { <span class="service-badge service-fire">🚒 Fire</span> }
+                                    @if (detailsEmergency.PoliceDispatched) { <span class="service-badge service-police">🚔 Police</span> }
+                                    @if (!detailsEmergency.AmbulanceDispatched && !detailsEmergency.FireBrigadeDispatched && !detailsEmergency.PoliceDispatched)
+                                    {
+                                        <span class="muted">No services dispatched yet</span>
+                                    }
+                                </span>
+                            </div>
+                            <div class="details-row">
+                                <span class="details-label">Assigned Facility</span>
+                                <span class="details-value">
+                                    @if (!string.IsNullOrEmpty(detailsEmergency.AssignedFacilityName))
+                                    {
+                                        <span class="facility-badge">@GetFacilityEmoji(detailsEmergency.AssignedFacilityType) @detailsEmergency.AssignedFacilityName</span>
+                                    }
+                                    else { <span class="muted">Not yet assigned</span> }
+                                </span>
+                            </div>
+                            <div class="details-row details-row-full">
+                                <span class="details-label">Description</span>
+                                <p class="details-description">@(string.IsNullOrEmpty(detailsEmergency.Description) ? "—" : detailsEmergency.Description)</p>
+                            </div>
+                        </div>
+                        <div class="details-map-wrap">
+                            @if (detailsEmergency.Latitude.HasValue && detailsEmergency.Longitude.HasValue)
+                            {
+                                <div id="admin-emergency-map" class="details-map"></div>
+                            }
+                            else
+                            {
+                                <div class="details-map details-map-empty">
+                                    <i data-lucide="map-off"></i>
+                                    <p>No GPS coordinates were captured for this report.</p>
+                                    @if (!string.IsNullOrEmpty(detailsEmergency.Location))
+                                    {
+                                        <p class="muted">Reporter described location as: <em>@detailsEmergency.Location</em></p>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
@@ -401,6 +524,24 @@
         catch
         {
             // Ignore if Lucide not loaded
+        }
+
+        // Render Leaflet map for the emergency-details modal once it's in the DOM
+        if (_shouldRenderDetailsMap && detailsEmergency is not null
+            && detailsEmergency.Latitude.HasValue && detailsEmergency.Longitude.HasValue)
+        {
+            _shouldRenderDetailsMap = false;
+            try
+            {
+                await JS.InvokeVoidAsync("drcAdminMap.render",
+                    "admin-emergency-map",
+                    detailsEmergency.Latitude.Value,
+                    detailsEmergency.Longitude.Value,
+                    $"{detailsEmergency.Type} #{detailsEmergency.Id}",
+                    detailsEmergency.Severity,
+                    detailsEmergency.Location ?? "");
+            }
+            catch { }
         }
     }
 
@@ -658,7 +799,7 @@
                         <tbody>
                             @foreach (var e in emergencies)
                             {
-                                <tr class="severity-row-@e.Severity.ToLower()">
+                                <tr class="severity-row-@e.Severity.ToLower() clickable-row" @onclick="() => ShowEmergencyDetails(e)">
                                     <td><strong>#@e.Id</strong></td>
                                     <td>@GetTypeEmoji(e.Type) @e.Type</td>
                                     <td><span class="badge @GetSeverityClass(e.Severity)">@e.Severity</span></td>
@@ -666,9 +807,22 @@
                                     <td>@TruncateText(e.Description, 30)</td>
                                     <td>@(e.UserPhone ?? "N/A")</td>
                                     <td class="services-cell">
-                                        @if (e.AmbulanceDispatched) { <span class="service-icon" title="Ambulance">🚑</span> }
-                                        @if (e.FireBrigadeDispatched) { <span class="service-icon" title="Fire Brigade">🚒</span> }
-                                        @if (e.PoliceDispatched) { <span class="service-icon" title="Police">🚔</span> }
+                                        @if (e.AmbulanceDispatched)
+                                        {
+                                            <span class="service-badge service-medical" title="Ambulance dispatched">🚑 Ambulance</span>
+                                        }
+                                        @if (e.FireBrigadeDispatched)
+                                        {
+                                            <span class="service-badge service-fire" title="Fire Brigade dispatched">🚒 Fire</span>
+                                        }
+                                        @if (e.PoliceDispatched)
+                                        {
+                                            <span class="service-badge service-police" title="Police dispatched">🚔 Police</span>
+                                        }
+                                        @if (!e.AmbulanceDispatched && !e.FireBrigadeDispatched && !e.PoliceDispatched)
+                                        {
+                                            <span class="service-badge service-none">— None —</span>
+                                        }
                                     </td>
                                     <td>
                                         @if (!string.IsNullOrEmpty(e.AssignedFacilityName))
@@ -679,12 +833,12 @@
                                         }
                                         else
                                         {
-                                            <button class="btn-assign" @onclick="@(() => ShowAssignFacilityModalForEmergency(e.Id, e.Type))">
+                                            <button class="btn-assign" @onclick="@(() => ShowAssignFacilityModalForEmergency(e.Id, e.Type))" @onclick:stopPropagation="true">
                                                 ➕ Assign
                                             </button>
                                         }
                                     </td>
-                                    <td>
+                                    <td @onclick:stopPropagation="true">
                                         <select class="status-select" value="@e.Status" 
                                                 @onchange="evt => UpdateEmergencyStatus(e.Id, evt.Value?.ToString())">
                                             <option value="Pending">Pending</option>
@@ -695,7 +849,7 @@
                                         </select>
                                     </td>
                                     <td>@e.CreatedAt.ToString("MMM dd, HH:mm")</td>
-                                    <td>
+                                    <td @onclick:stopPropagation="true">
                                         <button class="action-btn success" @onclick="() => ResolveEmergency(e.Id)" title="Mark Resolved"><i data-lucide="check"></i></button>
                                         @if (!string.IsNullOrEmpty(e.AssignedFacilityName))
                                         {
@@ -1335,6 +1489,28 @@
     {
         showAssignFacilityModal = false;
         suitableFacilities = null;
+        StateHasChanged();
+    }
+
+    // Emergency Details Modal State
+    private bool showDetailsModal = false;
+    private EmergencyRequestDto? detailsEmergency;
+    private bool _shouldRenderDetailsMap = false;
+
+    private void ShowEmergencyDetails(EmergencyRequestDto e)
+    {
+        detailsEmergency = e;
+        showDetailsModal = true;
+        _shouldRenderDetailsMap = e.Latitude.HasValue && e.Longitude.HasValue;
+        StateHasChanged();
+    }
+
+    private async Task CloseDetailsModal()
+    {
+        showDetailsModal = false;
+        _shouldRenderDetailsMap = false;
+        try { await JS.InvokeVoidAsync("drcAdminMap.dispose", "admin-emergency-map"); } catch { }
+        detailsEmergency = null;
         StateHasChanged();
     }
 

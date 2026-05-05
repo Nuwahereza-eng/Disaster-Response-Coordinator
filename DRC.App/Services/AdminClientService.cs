@@ -404,12 +404,19 @@ namespace DRC.App.Services
         public string Severity { get; set; } = "";
         public string Description { get; set; } = "";
         public string? Location { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
         public string Status { get; set; } = "";
         public string? UserPhone { get; set; }
+        public string? UserName { get; set; }
         public bool AmbulanceDispatched { get; set; }
         public bool FireBrigadeDispatched { get; set; }
         public bool PoliceDispatched { get; set; }
         public DateTime CreatedAt { get; set; }
+        public DateTime? AcknowledgedAt { get; set; }
+        public DateTime? ResolvedAt { get; set; }
+        public string? AssignedResponder { get; set; }
+        public string? ResponseNotes { get; set; }
         public int? AssignedFacilityId { get; set; }
         public string? AssignedFacilityName { get; set; }
         public string? AssignedFacilityType { get; set; }

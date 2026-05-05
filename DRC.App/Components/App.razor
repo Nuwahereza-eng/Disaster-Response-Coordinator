@@ -205,6 +205,55 @@
             }
         };
 
+        // Single-marker map for the admin emergency-details modal
+        window.drcAdminMap = {
+            _instances: {},
+            render: function (elementId, lat, lng, label, severity, locationText) {
+                if (typeof L === 'undefined') return;
+                const el = document.getElementById(elementId);
+                if (!el) return;
+
+                // Always (re)create — modal element is detached/remounted between opens
+                this.dispose(elementId);
+
+                const sevColor = (() => {
+                    const s = (severity || '').toLowerCase();
+                    if (s === 'critical') return '#dc2626';
+                    if (s === 'high') return '#ea580c';
+                    if (s === 'medium') return '#f59e0b';
+                    return '#2563eb';
+                })();
+
+                const map = L.map(elementId, { zoomControl: true, attributionControl: false })
+                    .setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19, attribution: '© OpenStreetMap'
+                }).addTo(map);
+
+                const icon = L.divIcon({
+                    className: 'drc-emergency-pin',
+                    html: `<div class="drc-emergency-pulse" style="background:${sevColor}"></div>` +
+                          `<div class="drc-emergency-dot" style="background:${sevColor}"></div>`,
+                    iconSize: [28, 28], iconAnchor: [14, 14]
+                });
+                const marker = L.marker([lat, lng], { icon: icon, zIndexOffset: 1000 }).addTo(map);
+                const popup = `<b>${label || 'Emergency'}</b>` +
+                    (severity ? `<br/><span style="color:${sevColor};font-weight:600">${severity}</span>` : '') +
+                    (locationText ? `<br/>${locationText}` : '') +
+                    `<br/><small>${lat.toFixed(5)}, ${lng.toFixed(5)}</small>`;
+                marker.bindPopup(popup).openPopup();
+
+                this._instances[elementId] = { map: map, marker: marker };
+                setTimeout(() => map.invalidateSize(), 80);
+                setTimeout(() => map.invalidateSize(), 300);
+            },
+            dispose: function (elementId) {
+                const inst = this._instances[elementId];
+                if (inst && inst.map) { try { inst.map.remove(); } catch (e) {} }
+                delete this._instances[elementId];
+            }
+        };
+
         // Admin auth token storage
         window.setAdminToken = (token) => {
             if (token) {
