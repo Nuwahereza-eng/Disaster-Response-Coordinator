@@ -3335,9 +3335,10 @@ button:hover .bi,
 }
 
 .main-content {
-    padding: 32px;
+    padding: 20px 18px;
     padding-bottom: 100px;
     overflow-y: auto;
+    overflow-x: hidden; /* the inner .table-container handles its own X-scroll */
 }
 
 /* Admin Loading */
@@ -3619,12 +3620,17 @@ button:hover .bi,
     background: #1e293b;
     border-radius: 16px;
     border: 1px solid #334155;
-    overflow: hidden;
+    /* overflow-x: auto so wide tables (like the 11-column Emergencies grid)
+       scroll horizontally instead of silently clipping the Status / Actions columns. */
+    overflow-x: auto;
+    overflow-y: visible;
 }
 
 .data-table {
     width: 100%;
     border-collapse: collapse;
+    /* Don't squeeze columns smaller than their content; let the container scroll instead. */
+    min-width: max-content;
 }
 
 .data-table th {
@@ -3634,16 +3640,18 @@ button:hover .bi,
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 14px 16px;
+    padding: 12px 12px;
     text-align: left;
     border-bottom: 1px solid #334155;
+    white-space: nowrap;
 }
 
 .data-table td {
-    padding: 14px 16px;
+    padding: 12px 12px;
     color: #f8fafc;
     font-size: 13px;
     border-bottom: 1px solid #334155;
+    white-space: nowrap;
 }
 
 .data-table tr:last-child td {
