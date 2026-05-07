@@ -38,19 +38,52 @@ namespace DRC.App.Services
         {
             try
             {
-                var response = await _httpClient.PostAsJsonAsync("/api/auth/login", new { emailOrPhone = email, password });
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(75));
+                var response = await _httpClient.PostAsJsonAsync("/api/auth/login",
+                    new { emailOrPhone = email, password }, cts.Token);
+
                 if (response.IsSuccessStatusCode)
                 {
-                    var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+                    var result = await response.Content.ReadFromJsonAsync<AuthResponse>(cancellationToken: cts.Token);
                     if (result?.Token != null)
                     {
                         SetAuthToken(result.Token);
                     }
                     return result;
                 }
+
+                // Surface the real reason instead of silently returning null
+                string body = "";
+                try { body = await response.Content.ReadAsStringAsync(cts.Token); } catch { }
+                try
+                {
+                    var errResult = System.Text.Json.JsonSerializer.Deserialize<AuthResponse>(body,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (errResult != null) return errResult;
+                }
+                catch { }
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = $"Server returned {(int)response.StatusCode} {response.ReasonPhrase}. {body}".Trim()
+                };
             }
-            catch { }
-            return null;
+            catch (TaskCanceledException)
+            {
+                return new AuthResponse
+                {
+                    Success = false,
+                    Message = "Server took too long to respond. The API may be cold-starting (free tier) — please try again in 30 seconds."
+                };
+            }
+            catch (HttpRequestException ex)
+            {
+                return new AuthResponse { Success = false, Message = $"Network error: {ex.Message}" };
+            }
+            catch (Exception ex)
+            {
+                return new AuthResponse { Success = false, Message = $"Login error: {ex.Message}" };
+            }
         }
 
         // Dashboard
