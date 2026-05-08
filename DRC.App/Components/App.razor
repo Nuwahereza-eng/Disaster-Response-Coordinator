@@ -101,26 +101,98 @@
         }
 
         // Subtle "new incident" chime for admin live feed (WebAudio + vibration fallback)
-        window.liveChime = () => {
-            try {
-                const Ctx = window.AudioContext || window.webkitAudioContext;
-                if (Ctx) {
-                    const ctx = new Ctx();
-                    const o = ctx.createOscillator();
-                    const g = ctx.createGain();
-                    o.type = 'sine';
-                    o.frequency.setValueAtTime(880, ctx.currentTime);
-                    o.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
-                    g.gain.setValueAtTime(0.0001, ctx.currentTime);
-                    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
-                    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
-                    o.connect(g); g.connect(ctx.destination);
-                    o.start();
-                    o.stop(ctx.currentTime + 0.5);
-                }
-                if (navigator.vibrate) { navigator.vibrate(30); }
-            } catch (e) { /* ignore */ }
+        window.liveChime = (severity) => {
+            try { window.drcAlarm.play(severity || 'medium'); } catch (e) { /* ignore */ }
         }
+
+        // Severity-aware alarm system for the admin live feed.
+        // Designed to survive browser autoplay rules: AudioContext is created lazily and
+        // resumed on the first user gesture (login click). State persists in localStorage.
+        window.drcAlarm = (function () {
+            let ctx = null;
+            const STORAGE_KEY = 'drc-admin-alarm-enabled';
+            let enabled = (() => {
+                try { return localStorage.getItem(STORAGE_KEY) !== '0'; } catch { return true; }
+            })();
+
+            function ensureCtx() {
+                if (ctx) {
+                    if (ctx.state === 'suspended') { try { ctx.resume(); } catch { } }
+                    return ctx;
+                }
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return null;
+                ctx = new Ctx();
+                return ctx;
+            }
+
+            function tone(startFreq, endFreq, durSec, gain, delay, type) {
+                if (!ctx) return;
+                const t0 = ctx.currentTime + (delay || 0);
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = type || 'sine';
+                o.frequency.setValueAtTime(startFreq, t0);
+                if (endFreq && endFreq !== startFreq) {
+                    o.frequency.exponentialRampToValueAtTime(endFreq, t0 + durSec);
+                }
+                g.gain.setValueAtTime(0.0001, t0);
+                g.gain.exponentialRampToValueAtTime(gain || 0.2, t0 + 0.015);
+                g.gain.exponentialRampToValueAtTime(0.0001, t0 + durSec);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(t0);
+                o.stop(t0 + durSec + 0.05);
+            }
+
+            return {
+                // Resume the AudioContext under a user gesture (call on login click)
+                unlock: function () {
+                    const c = ensureCtx();
+                    if (c && c.state === 'suspended') { try { c.resume(); } catch { } }
+                },
+                isEnabled: function () { return enabled; },
+                setEnabled: function (val) {
+                    enabled = !!val;
+                    try { localStorage.setItem(STORAGE_KEY, enabled ? '1' : '0'); } catch { }
+                    if (enabled) { this.unlock(); this.play('low'); } // confirmation blip
+                    return enabled;
+                },
+                toggle: function () { return this.setEnabled(!enabled); },
+
+                play: function (severity) {
+                    if (!enabled) return;
+                    const c = ensureCtx();
+                    if (!c) {
+                        if (navigator.vibrate) navigator.vibrate(40);
+                        return;
+                    }
+                    if (c.state === 'suspended') { try { c.resume(); } catch { } }
+
+                    const sev = (severity || 'medium').toString().toLowerCase();
+
+                    if (sev === 'critical') {
+                        // 3-burst rising siren — unmistakable
+                        tone(700, 1100, 0.28, 0.28, 0.00, 'sawtooth');
+                        tone(700, 1100, 0.28, 0.28, 0.34, 'sawtooth');
+                        tone(700, 1100, 0.28, 0.30, 0.68, 'sawtooth');
+                        tone(1320, 880, 0.45, 0.22, 1.05, 'sine');
+                        if (navigator.vibrate) navigator.vibrate([120, 60, 120, 60, 200]);
+                    } else if (sev === 'high') {
+                        // 2-tone alert
+                        tone(880, 1100, 0.22, 0.24, 0.00, 'triangle');
+                        tone(1100, 880, 0.30, 0.22, 0.26, 'triangle');
+                        if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
+                    } else if (sev === 'low') {
+                        // Soft confirmation blip (also used for toggle confirm)
+                        tone(660, 880, 0.18, 0.12, 0.00, 'sine');
+                    } else {
+                        // medium / unknown — original subtle chime
+                        tone(880, 1320, 0.45, 0.18, 0.00, 'sine');
+                        if (navigator.vibrate) navigator.vibrate(30);
+                    }
+                }
+            };
+        })();
 
         // Leaflet map helper — renders user position + nearby facilities.
         window.drcMap = {

@@ -141,6 +141,11 @@
                             <span class="live-dot"></span>
                             @(Live.IsConnected ? "LIVE" : "OFFLINE")
                         </span>
+                        <button class="sound-toggle-btn @(soundEnabled ? "on" : "off")" @onclick="ToggleSound"
+                                title="@(soundEnabled ? "Alarm sounds ON — click to mute" : "Alarm sounds MUTED — click to enable")">
+                            <i data-lucide="@(soundEnabled ? "bell" : "bell-off")"></i>
+                            @(soundEnabled ? "Sound" : "Muted")
+                        </button>
                         <button class="refresh-btn" @onclick="RefreshData" disabled="@isLoading">
                             <i data-lucide="refresh-cw" class="@(isLoading ? "spinning" : "")"></i> Refresh
                         </button>
@@ -416,6 +421,17 @@
     // --- Live feed state ---
     private readonly List<LiveEmergency> liveToasts = new();
     private bool liveSubscribed = false;
+    private bool soundEnabled = true;
+
+    private async Task ToggleSound()
+    {
+        try
+        {
+            soundEnabled = await JS.InvokeAsync<bool>("drcAlarm.toggle");
+            StateHasChanged();
+        }
+        catch { }
+    }
 
     private void DismissToast(int id)
     {
@@ -448,8 +464,8 @@
             if (stats != null) stats.PendingEmergencyRequests++;
             StateHasChanged();
 
-            // Subtle chime / vibration
-            try { await JS.InvokeVoidAsync("liveChime"); } catch { /* ignore */ }
+            // Severity-aware alarm + vibration
+            try { await JS.InvokeVoidAsync("liveChime", e.Severity ?? "high"); } catch { /* ignore */ }
 
             // Auto-dismiss this toast after 12s
             _ = Task.Run(async () =>
@@ -498,6 +514,9 @@
     {
         if (firstRender)
         {
+            // Restore the alarm-enabled preference from localStorage
+            try { soundEnabled = await JS.InvokeAsync<bool>("drcAlarm.isEnabled"); } catch { }
+
             // Try to restore auth token from sessionStorage
             try
             {
@@ -550,6 +569,10 @@
         loginError = null;
         isLoggingIn = true;
         StateHasChanged();
+
+        // Unlock the WebAudio context under the user gesture so alarm sounds
+        // can play on incoming emergencies (browser autoplay policy).
+        try { await JS.InvokeVoidAsync("drcAlarm.unlock"); } catch { }
 
         try
         {
